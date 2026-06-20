@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NextGen WebBank – UX Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .sync-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+<!-- Global Header: Kontroll & Kontextus -->
+<header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-40">
+    <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">N</div>
+        <h1 class="text-lg font-semibold tracking-tight">NextGen WebBank</h1>
+    </div>
+    <div class="flex items-center gap-4 text-xs text-slate-500">
+        <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z"/></svg> TLS 1.3</span>
+        <span class="flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-6 6v4a6 6 0 0012 0V8a6 6 0 00-6-6zm3.5 9H6.5v-2h7v2z"/></svg> AES-256</span>
+        <code class="bg-slate-100 px-2 py-0.5 rounded font-mono">trace: a1b2...c9d8</code>
+    </div>
+    <div class="flex items-center gap-3">
+        <button class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition" aria-label="Új utalás">+ Új tranzakció</button>
+        <div class="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-sm font-semibold" role="img" aria-label="Felhasználó avatar">KZ</div>
+    </div>
+</header>
+
+<main class="max-w-7xl mx-auto p-6 space-y-10">
+
+<!-- 1. Secure Onboarding & MFA -->
+<section id="screen-onboarding" class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+    <h2 class="text-xl font-semibold mb-6 flex items-center gap-2"><span class="w-2 h-6 bg-blue-600 rounded"></span>Secure Onboarding & MFA</h2>
+    <div class="max-w-md mx-auto space-y-4">
+        <form class="space-y-4" onsubmit="event.preventDefault()">
+            <div>
+                <label for="email" class="block text-sm font-medium mb-1">E-mail cím</label>
+                <input type="email" id="email" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" aria-describedby="email-help">
+                <p id="email-help" class="text-xs text-slate-500 mt-1">Azonosító a rendszerben. A hitelesítés után zárt session nyílik.</p>
+            </div>
+            <div>
+                <label for="password" class="block text-sm font-medium mb-1">Jelszó</label>
+                <input type="password" id="password" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" aria-describedby="pass-help">
+            </div>
+            <button type="submit" class="w-full bg-slate-900 text-white py-2.5 rounded-lg font-medium hover:bg-slate-800 transition disabled:opacity-50" id="login-btn">Bejelentkezés</button>
+        </form>
+        <div class="relative flex items-center justify-center gap-2 my-6">
+            <span class="h-px bg-slate-200 w-full"></span>
+            <span class="text-xs text-slate-400 uppercase tracking-wider">vagy</span>
+            <span class="h-px bg-slate-200 w-full"></span>
+        </div>
+        <button class="w-full flex items-center justify-center gap-3 border border-slate-300 py-2.5 rounded-lg hover:bg-slate-50 transition" aria-label="Biometrikus azonosítás">
+            <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+            <span class="text-sm font-medium">WebAuthn / FIDO2 Biometria</span>
+        </button>
+    </div>
+</section>
+
+<!-- 2. Central PFM Dashboard -->
+<section id="screen-dashboard" class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+    <h2 class="text-xl font-semibold mb-6 flex items-center gap-2"><span class="w-2 h-6 bg-emerald-500 rounded"></span>Central PFM Dashboard</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Widget 1: Balance -->
+        <article class="bg-slate-50 p-4 rounded-lg border border-slate-200 relative group" draggable="true" aria-label="Egyenleg widget, húzáshoz kész">
+            <div class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition cursor-grab"><svg class="w-4 h-4 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path d="M7 2a2 2 0 100 4 2 2 0 000-4zM7 8a2 2 0 100 4 2 2 0 000-4zM13 2a2 2 0 100 4 2 2 0 000-4zM13 8a2 2 0 100 4 2 2 0 000-4z"/></svg></div>
+            <p class="text-sm text-slate-500 mb-1">Fő számla (HU...5678)</p>
+            <h3 class="text-3xl font-bold text-slate-900">€ 14,250.00</h3>
+            <div class="flex items-center gap-2 mt-3">
+                <span class="w-2 h-2 bg-emerald-500 rounded-full sync-pulse"></span>
+                <span class="text-xs text-slate-400 font-mono">LIVE SYNC: 18ms</span>
+            </div>
+        </article>
+        <!-- Widget 2: Spending Viz -->
+        <article class="bg-slate-50 p-4 rounded-lg border border-slate-200 relative group" draggable="true">
+            <div class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition cursor-grab"><svg class="w-4 h-4 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path d="M7 2a2 2 0 100 4 2 2 0 000-4zM7 8a2 2 0 100 4 2 2 0 000-4zM13 2a2 2 0 100 4 2 2 0 000-4zM13 8a2 2 0 100 4 2 2 0 000-4z"/></svg></div>
+            <p class="text-sm text-slate-500 mb-2">Költési kategóriák (MI-osztályozás)</p>
+            <div class="space-y-2">
+                <div class="flex justify-between text-xs"><span>Bérlakás</span><span class="font-medium">42%</span></div>
+                <div class="w-full bg-slate-200 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width: 42%"></div></div>
+                <div class="flex justify-between text-xs"><span>Élelmiszer</span><span class="font-medium">28%</span></div>
+                <div class="w-full bg-slate-200 rounded-full h-1.5"><div class="bg-emerald-400 h-1.5 rounded-full" style="width: 28%"></div></div>
+                <div class="flex justify-between text-xs"><span>Szabadidő</span><span class="font-medium">30%</span></div>
+                <div class="w-full bg-slate-200 rounded-full h-1.5"><div class="bg-amber-400 h-1.5 rounded-full" style="width: 30%"></div></div>
+            </div>
+        </article>
+        <!-- Widget 3: Quick Actions -->
+        <article class="bg-slate-50 p-4 rounded-lg border border-slate-200 relative group" draggable="true">
+            <div class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition cursor-grab"><svg class="w-4 h-4 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path d="M7 2a2 2 0 100 4 2 2 0 000-4zM7 8a2 2 0 100 4 2 2 0 000-4zM13 2a2 2 0 100 4 2 2 0 000-4zM13 8a2 2 0 100 4 2 2 0 000-4z"/></svg></div>
+            <p class="text-sm text-slate-500 mb-3">Gyors akciók</p>
+            <div class="grid grid-cols-2 gap-2">
+                <button class="bg-white border border-slate-200 p-2 rounded text-xs font-medium hover:border-blue-400 transition" aria-label="1-click utalás">⚡ 1-Click Utalás</button>
+                <button class="bg-white border border-slate-200 p-2 rounded text-xs font-medium hover:border-blue-400 transition" aria-label="Sablon betöltése">📄 Sablon</button>
+            </div>
+        </article>
+    </div>
+    <!-- Transaction Table -->
+    <div class="mt-6 overflow-x-auto">
+        <table class="w-full text-left text-sm border-collapse" aria-label="Valós idejű tranzakciók">
+            <thead><tr class="border-b border-slate-200 text-xs uppercase text-slate-500"><th class="py-2 px-3">ID</th><th class="py-2 px-3">Címzett</th><th class="py-2 px-3">Összeg</th><th class="py-2 px-3">Státusz</th><th class="py-2 px-3">TraceId</th></tr></thead>
+            <tbody>
+                <tr class="border-b border-slate-100"><td class="py-2 px-3 font-mono text-xs">t-9f8a...</td><td class="py-2 px-3">HU74...8888</td><td class="py-2 px-3">€ 250.00</td><td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-medium">PENDING_APPROVAL</span></td><td class="py-2 px-3 font-mono text-slate-400 text-xs">trace-sim-init</td></tr>
+                <tr class="border-b border-slate-100"><td class="py-2 px-3 font-mono text-xs">t-7c6b...</td><td class="py-2 px-3">DE89...0130</td><td class="py-2 px-3">€ 150.75</td><td class="py-2 px-3"><span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-medium">APPROVED</span></td><td class="py-2 px-3 font-mono text-slate-400 text-xs">trace-sim-approve</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- 3. Core Transaction Wizard -->
+<section id="screen-wizard" class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+    <h2 class="text-xl font-semibold mb-6 flex items-center gap-2"><span class="w-2 h-6 bg-indigo-500 rounded"></span>Core Transaction Wizard</h2>
+    <div class="max-w-3xl mx-auto">
+        <!-- Step Indicator -->
+        <div class="flex items-center justify-between mb-8 text-xs font-medium text-slate-400">
+            <span class="text-blue-600 flex items-center gap-1"><span class="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center">1</span> Adatok</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            <span class="flex items-center gap-1"><span class="w-5 h-5 rounded-full bg-slate-300 flex items-center justify-center">2</span> Validáció</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            <span><span class="w-5 h-5 rounded-full bg-slate-300 flex items-center justify-center">3</span> Megerősítés</span>
+        </div>
+        <!-- Form -->
+        <form class="space-y-4" onsubmit="event.preventDefault()">
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="block text-sm font-medium mb-1">Összeg (EUR)</label><input type="number" step="0.01" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value="250.00"></div>
+                <div><label class="block text-sm font-medium mb-1">Fizetési típus</label><select class="w-full px-3 py-2 border rounded-lg bg-white"><option>SEPA_INSTANT</option><option>DOMESTIC_RTGS</option></select></div>
+            </div>
+            <div><label class="block text-sm font-medium mb-1">Címzett IBAN</label>
+                <div class="relative"><input type="text" value="HU74 1164 0000 0000 0100 9999 8888" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none pr-10"><svg class="absolute right-3 top-2.5 w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg></div>
+                <p class="text-xs text-emerald-600 mt-1">✅ IBAN checksum validálva (mod-97)</p>
+            </div>
+            <div><label class="block text-sm font-medium mb-1">Hivatkozás</label><input type="text" placeholder="Invoice #884" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"></div>
+            <!-- Status Tracker -->
+            <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 flex items-center justify-between text-xs">
+                <span class="text-slate-500">Várható feldolgozás:</span>
+                <span class="font-medium text-blue-600">SEPA Instant &lt; 10s</span>
+            </div>
+            <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition">Tranzakció kezdeményezése</button>
+        </form>
+    </div>
+</section>
+
+<!-- 4. Templates & Batch Management -->
+<section id="screen-templates" class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+    <h2 class="text-xl font-semibold mb-6 flex items-center gap-2"><span class="w-2 h-6 bg-purple-500 rounded"></span>Templates & Batch Management</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Upload Zone -->
+        <article class="lg:col-span-2 border-2 border-dashed border-slate-300 rounded-xl p-8 flex flex-col items-center justify-center text-center bg-slate-50 hover:bg-white transition cursor-pointer" role="button" aria-label="CSV/Excel drag-drop import">
+            <svg class="w-10 h-10 text-slate-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            <p class="text-sm font-medium text-slate-700">Húzza ide a CSV/Excel fájlt</p>
+            <p class="text-xs text-slate-400 mt-1">Automatikus sémaleképezés & KVK multi-sig validáció</p>
+        </article>
+        <!-- Filter/Search -->
+        <div class="space-y-3">
+            <input type="text" placeholder="Sablon keresése..." class="w-full px-3 py-2 border rounded-lg text-sm" aria-label="Sablon szűrés">
+            <button class="w-full bg-slate-800 text-white py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition">Kötött jóváhagyás (KVK)</button>
+        </div>
+    </div>
+    <!-- Template List -->
+    <table class="w-full mt-6 text-left text-sm border-collapse">
+        <thead><tr class="border-b border-slate-200 text-xs uppercase text-slate-500"><th class="py-2 px-3">Név</th><th class="py-2 px-3">Címzettek</th><th class="py-2 px-3">Státusz</th><th class="py-2 px-3">KVK</th></tr></thead>
+        <tbody>
+            <tr class="border-b border-slate-100"><td class="py-2 px-3 font-medium">Havi beszállító fizetés</td><td class="py-2 px-3">47 db</td><td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">Tervezett: 28.10.</span></td><td class="py-2 px-3"><span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5z"/></svg> Multi-Sig</span></td></tr>
+            <tr class="border-b border-slate-100"><td class="py-2 px-3 font-medium">Bérletköltség admin</td><td class="py-2 px-3">12 db</td><td class="py-2 px-3"><span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs">Végrehajtva</span></td><td class="py-2 px-3"><span class="text-slate-400 text-xs">-</span></td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- 5. Digital Customer Service -->
+<section id="screen-support" class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+    <h2 class="text-xl font-semibold mb-6 flex items-center gap-2"><span class="w-2 h-6 bg-cyan-500 rounded"></span>Digital Customer Service</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 h-96">
+        <!-- Chat Stream -->
+        <article class="lg:col-span-2 flex flex-col border border-slate-200 rounded-lg overflow-hidden bg-slate-50" aria-label="Ügyfélszolgálat chat">
+            <div class="p-3 bg-white border-b border-slate-200 flex justify-between items-center text-xs">
+                <span class="font-medium text-slate-700">Biztonságos csatorna</span>
+                <span class="flex items-center gap-1 text-emerald-600"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z"/></svg> E2E Titkosított</span>
+            </div>
+            <div class="flex-1 p-4 space-y-3 overflow-auto">
+                <div class="bg-white p-3 rounded-lg shadow-sm max-w-xs text-sm border border-slate-100"><span class="text-xs text-slate-400 block mb-1">Bot / 10:12</span>Üdvözlöm! Miben segíthetek a <code>t-9f8a...</code> tranzakcióval?</div>
+                <div class="bg-blue-600 text-white p-3 rounded-lg shadow-sm max-w-xs ml-auto text-sm"><span class="text-xs text-blue-200 block mb-1">Ön / 10:14</span>A jóváhagyás miért akadt el? Az API status 200-at mutatott.</div>
+                <div class="bg-white p-3 rounded-lg shadow-sm max-w-xs text-sm border border-slate-100"><span class="text-xs text-slate-400 block mb-1">Bot / 10:15</span>Automatikus compliance szűrés alá került. Kérem, várjon az emberi szakember átvételére.</div>
+                <div class="bg-cyan-50 border border-cyan-200 p-3 rounded-lg text-xs text-cyan-800">⚠️ Bot handoff: Emberi ügynök átvette a kontextust. A chat session traceId: `trace-sim-handoff`</div>
+            </div>
+            <div class="p-3 bg-white border-t border-slate-200 flex gap-2">
+                <input type="text" placeholder="Üzenet írása..." class="flex-1 px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-cyan-400" aria-label="Üzenet beírása">
+                <button class="bg-cyan-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-cyan-700 transition">Küldés</button>
+            </div>
+        </article>
+        <!-- Context Panel -->
+        <aside class="border border-slate-200 rounded-lg p-4 bg-white flex flex-col" aria-label="Tranzakció kontextus panel">
+            <h3 class="text-sm font-semibold mb-3 text-slate-700">Aktuális Kontextus</h3>
+            <div class="space-y-3 text-xs flex-1">
+                <div><span class="text-slate-500 block">Tranzakció ID:</span> <code class="bg-slate-100 px-1 rounded">t-9f8a-c9d8...</code></div>
+                <div><span class="text-slate-500 block">Státusz:</span> <span class="font-medium text-blue-600">PENDING_APPROVAL</span></div>
+                <div><span class="text-slate-500 block">Audit trail:</span> <code class="bg-slate-100 px-1 rounded">trace-sim-init</code></div>
+                <div class="pt-2 border-t border-slate-100"><span class="text-slate-500 block mb-1">GDPR compliance:</span><p class="text-slate-600">Az adatfeldolgozás jogalapja: szerződés teljesítése (PSD2). Adattörlési kérelem a settings menüpontban.</p></div>
+            </div>
+        </aside>
+    </div>
+</section>
+
+<footer class="text-center text-xs text-slate-400 pt-6 pb-10">NextGen WebBank v1.0.0 | Design System: Penpot Native Export | WCAG AA/AAA Compliant</footer>
+
+</main>
+</body>
+</html>
