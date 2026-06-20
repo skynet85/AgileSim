@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1024" width="100%" height="100%">
+  <rect width="1440" height="1024" fill="#F8FAFC"/>
+  <!-- Header -->
+  <g id="header">
+    <rect x="0" y="0" width="1440" height="64" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1"/>
+    <circle cx="50" cy="32" r="16" fill="#2563EB"/>
+    <text x="76" y="38" font-family="Inter, sans-serif" font-size="18" font-weight="600" fill="#0F172A">NextGen WebBank</text>
+    <rect x="1100" y="24" width="80" height="20" rx="4" fill="#E2E8F0"/>
+    <text x="1106" y="38" font-family="monospace" font-size="11" fill="#64748B">trace: a1b2...</text>
+  </g>
+  <!-- Main Content -->
+  <g id="onboarding-screen">
+    <rect x="520" y="200" width="400" height="480" rx="16" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1"/>
+    <text x="720" y="260" font-family="Inter, sans-serif" font-size="24" font-weight="700" text-anchor="middle" fill="#0F172A">Biztonságos belépés</text>
+    <!-- Email -->
+    <rect x="580" y="300" width="280" height="44" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="596" y="327" font-family="Inter, sans-serif" font-size="14" fill="#94A3B8">E-mail cím</text>
+    <!-- Password -->
+    <rect x="580" y="360" width="280" height="44" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="596" y="387" font-family="Inter, sans-serif" font-size="14" fill="#94A3B8">Jelszó</text>
+    <!-- Submit -->
+    <rect x="580" y="430" width="280" height="48" rx="8" fill="#0F172A"/>
+    <text x="720" y="460" font-family="Inter, sans-serif" font-size="15" font-weight="500" text-anchor="middle" fill="#FFFFFF">Bejelentkezés</text>
+    <!-- Divider -->
+    <line x1="620" y1="520" x2="820" y2="520" stroke="#E2E8F0"/>
+    <text x="720" y="514" font-family="Inter, sans-serif" font-size="11" fill="#94A3B8">VAGY</text>
+    <!-- Biometric -->
+    <rect x="580" y="540" width="280" height="48" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <path d="M630 564 h10 v-10 h4 v10 h10 v4 h-10 v10 h-4 v-10 h-10 z" fill="#64748B"/>
+    <text x="650" y="572" font-family="Inter, sans-serif" font-size="13" fill="#334155">WebAuthn / FIDO2</text>
+    <!-- Security Badges -->
+    <rect x="580" y="620" width="90" height="24" rx="12" fill="#F1F5F9"/>
+    <circle cx="594" cy="632" r="3" fill="#10B981"/>
+    <text x="604" y="637" font-family="Inter, sans-serif" font-size="10" fill="#64748B">TLS 1.3</text>
+    <rect x="690" y="620" width="90" height="24" rx="12" fill="#F1F5F9"/>
+    <path d="M704 628 h8 v-4 h4 v4 h4 v12 h-16 z" fill="#64748B"/>
+    <text x="716" y="637" font-family="Inter, sans-serif" font-size="10" fill="#64748B">AES-256</text>
+  </g>
+</svg>
