@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 375 812" width="375" height="812">
+  <defs><style>.bg-slate-900{fill:#0f172a}.font-bold{font-weight:700}</style></defs>
+  
+  <!-- Header -->
+  <text x="20" y="48" class="font-bold text-xl">Válassz csomagot</text>
+
+  <!-- Free Tier -->
+  <rect x="20" y="80" width="335" height="160" rx="12" fill="#1e293b"/>
+  <text x="30" y="110" class="font-bold">Alap</text>
+  <text x="290" y="110" class="font-bold">Ingyenes</text>
+  <g transform="translate(30, 135)">
+    <rect width="6" height="6" rx="1" fill="#6b7280"/><text x="14" y="6" class="text-xs text-gray-400">basic_booking</text>
+    <g transform="translate(0, 15)"><rect width="6" height="6" rx="1" fill="#6b7280"/><text x="14" y="6" class="text-xs text-gray-400">email_notif_delayed</text></g>
+    <g transform="translate(0, 30)"><rect width="6" height="6" rx="1" fill="#6b7280"/><text x="14" y="6" class="text-xs text-gray-400">alap_foglalás</text></g>
+  </g>
+
+  <!-- Pro Tier -->
+  <rect x="20" y="260" width="335" height="220" rx="12" fill="#1e293b" stroke="#3b82f6"/>
+  <text x="147.5" y="285" text-anchor="middle" class="font-bold text-xs bg-blue-600 px-2 py-0.5 rounded-full">AJÁNLOTT</text>
+  <text x="30" y="320" class="font-bold text-blue-400">Pro</text>
+  <text x="290" y="320" class="font-bold">990 Ft/hó</text>
+  
+  <g transform="translate(30, 350)">
+    <rect width="6" height="6" rx="1" fill="#3b82f6"/><text x="14" y="6" class="text-xs">priority_access</text>
+    <g transform="translate(0, 15)"><rect width="6" height="6" rx="1" fill="#3b82f6"/><text x="14" y="6" class="text-xs">group_management</text></g>
+    <g transform="translate(0, 30)"><rect width="6" height="6" rx="1" fill="#3b82f6"/><text x="14" y="6" class="text-xs">offline_access</text></g>
+    <g transform="translate(0, 45)"><rect width="6" height="6" rx="1" fill="#3b82f6"/><text x="14" y="6" class="text-xs">pdf_export</text></g>
+  </g>
+
+  <!-- Family Tier -->
+  <rect x="20" y="500" width="335" height="160" rx="12" fill="#1e293b"/>
+  <text x="30" y="530" class="font-bold">Family</text>
+  <text x="290" y="530" class="font-bold">1490 Ft/hó</text>
+  <g transform="translate(30, 555)">
+    <rect width="6" height="6" rx="1" fill="#6b7280"/><text x="14" y="6" class="text-xs text-gray-400">multi_user_profiles</text>
+    <g transform="translate(0, 15)"><rect width="6" height="6" rx="1" fill="#6b7280"/><text x="14" y="6" class="text-xs text-gray-400">parental_controls</text></g>
+    <g transform="translate(0, 30)"><rect width="6" height="6" rx="1" fill="#6b7280"/><text x="14" y="6" class="text-xs text-gray-400">shared_cart</text></g>
+  </g>
+
+  <!-- CTA -->
+  <rect x="20" y="740" width="335" height="48" rx="12" fill="#2563eb"/>
+  <text x="190" y="770" text-anchor="middle" class="font-bold">Váltás Pro-ra</text>
+</svg>
