@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="hu" class="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Online Malom – UX/UI Design System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Segoe+UI:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Segoe UI', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              amber: '#f59e0b',
+              red: '#ef4444',
+              dark: '#0f172a',
+              surface: '#1e293b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-brand-dark text-white font-sans">
+
+  <!-- Design System Overview -->
+  <div class="max-w-7xl mx-auto px-6 py-12">
+
+    <!-- Title -->
+    <div class="text-center mb-16">
+      <h1 class="text-5xl font-extrabold text-white mb-4">🎮 Online Malom – UX/UI Design System</h1>
+      <p class="text-xl text-gray-400">Nine Men's Morris • Reszponzív • Akesszíbilis • Open Source</p>
+      <div class="mt-6 flex justify-center gap-3">
+        <span class="px-3 py-1 rounded-full bg-brand-amber/20 text-brand-amber text-sm font-semibold">Penpot Native SVG</span>
+        <span class="px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 text-sm font-semibold">Tailwind CSS</span>
+        <span class="px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-sm font-semibold">WCAG 2.1 AA</span>
+      </div>
+    </div>
+
+    <!-- Design Tokens -->
+    <div class="mb-16 p-8 rounded-2xl bg-brand-surface border border-white/5">
+      <h2 class="text-2xl font-bold mb-6 text-white">🎨 Design Tokenok</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div class="space-y-3">
+          <div class="w-full h-16 rounded-xl bg-brand-amber"></div>
+          <p class="text-sm text-gray-400 font-mono">#f59e0b</p>
+          <p class="text-xs text-gray-500">Primary / CTA</p>
+        </div>
+        <div class="space-y-3">
+          <div class="w-full h-16 rounded-xl bg-brand-red"></div>
+          <p class="text-sm text-gray-400 font-mono">#ef4444</p>
+          <p class="text-xs text-gray-500">Player B / Danger</p>
+        </div>
+        <div class="space-y-3">
+          <div class="w-full h-16 rounded-xl bg-gray-700"></div>
+          <p class="text-sm text-gray-400 font-mono">#334155</p>
+          <p class="text-xs text-gray-500">Surface / Card</p>
+        </div>
+        <div class="space-y-3">
+          <div class="w-full h-16 rounded-xl bg-gray-900"></div>
+          <p class="text-sm text-gray-400 font-mono">#0f172a</p>
+          <p class="text-xs text-gray-500">Background / Base</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screens Overview -->
+    <h2 class="text-3xl font-bold mb-8 text-white">📱 Képernyők Áttekintése</h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+
+      <!-- Screen 1: Landing -->
+      <div class="rounded-2xl overflow-hidden bg-brand-surface border border-white/5 hover:border-brand-amber/30 transition-all duration-300 group">
+        <div class="p-4 flex items-center justify-between">
+          <h3 class="text-lg font-bold text-white">1. Landing Page</h3>
+          <span class="px-2 py-1 rounded bg-brand-amber/20 text-brand-amber text-xs font-mono">1440×960</span>
+        </div>
+        <div class="relative h-64 bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center overflow-hidden group-hover:shadow-lg group-hover:shadow-brand-amber/10 transition-all">
+          <!-- Mini preview -->
+          <div class="text-center space-y-3 p-8">
+            <h4 class="text-3xl font-extrabold text-white">MALOM</h4>
+            <p class="text-gray-400 text-sm">Klasszikus stratégiai játék</p>
+            <div class="w-48 h-10 bg-brand-amber rounded-full mx-auto flex items-center justify-center">
+              <span class="text-sm font-bold text-slate-900">Játék Indítása</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Screen 2: Lobby -->
+      <div class="rounded-2xl overflow-hidden bg-brand-surface border border-white/5 hover:border-brand-amber/30 transition-all duration-300 group">
+        <div class="p-4 flex items-center justify-between">
+          <h3 class="text-lg font-bold text-white">2. Lobby / Matchmaking</h3>
+          <span class="px-2 py-1 rounded bg-brand-amber/20 text-brand-amber text-xs font-mono">1440×960</span>
+        </div>
+        <div class="relative h-64 bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center overflow-hidden group-hover:shadow-lg group-hover:shadow-brand-amber/10 transition-all">
+          <div class="flex gap-4 p-6 w-full max-w-md">
+            <div class="w-1/2 space-y-3">
+              <div class="h-8 bg-brand-amber rounded-xl"></div>
+              <div class="h-8 bg-slate-900 border border-white/10 rounded-xl"></div>
+              <div class="h-8 bg-slate-900 border border-white/10 rounded-xl"></div>
+            </div>
+            <div class="w-1/2 space-y-3">
+              <div class="h-6 bg-slate-700 rounded-lg w-3/4"></div>
+              <div class="flex gap-2">
+                <div class="w-8 h-8 rounded-full bg-slate-700 border-2 border-green-500"></div>
+                <div class="w-8 h-8 rounded-full bg-slate-700 border-2 border-green-500"></div>
+                <div class="w-8 h-8 rounded-full bg-slate-700 border-2 border-yellow-500"></div>
+              </div>
+              <div class="h-6 bg-slate-900 border border-white/10 rounded-lg w-full"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Screen 3: Game Board -->
+      <div class="rounded-2xl overflow-hidden bg-brand-surface border border-white/5 hover:border-brand-amber/30 transition-all duration-300 group">
+        <div class="p-4 flex items-center justify-between">
+          <h3 class="text-lg font-bold text-white">3. Játéktábla</h3>
+          <span class="px-2 py-1 rounded bg-brand-amber/20 text-brand-amber text-xs font-mono">1440×960</span>
+        </div>
+        <div class="relative h-64 bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center overflow-hidden group-hover:shadow-lg group-hover:shadow-brand-amber/10 transition-all">
+          <!-- Mini board preview -->
+          <svg viewBox="0 0 200 200" class="w-48 h-48">
+            <rect x="15" y="15" width="170" height="170" fill="none" stroke="#cbd5e1" stroke-width="1.5"/>
+            <g transform="rotate(45 100 100)"><rect x="45" y="45" width="110" height="110" fill="none" stroke="#cbd5e1" stroke-width="1"/></g>
+            <rect x="75" y="75" width="50" height="50" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+            <!-- Stones -->
+            <circle cx="20" cy="20" r="6" fill="#f59e0b"/>
+            <circle cx="180" cy="20" r="6" fill="#ef4444"/>
+            <circle cx="100" y="100" r="5" fill="#f59e0b"/>
+            <!-- Highlight -->
+            <circle cx="100" cy="20" r="8" fill="none" stroke="#f59e0b" stroke-width="2" opacity="0.6"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Screen 4: Game Over -->
+      <div class="rounded-2xl overflow-hidden bg-brand-surface border border-white/5 hover:border-brand-amber/30 transition-all duration-300 group">
+        <div class="p-4 flex items-center justify-between">
+          <h3 class="text-lg font-bold text-white">4. Game Over</h3>
+          <span class="px-2 py-1 rounded bg-brand-amber/20 text-brand-amber text-xs font-mono">1440×960</span>
+        </div>
+        <div class="relative h-64 bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center overflow-hidden group-hover:shadow-lg group-hover:shadow-brand-amber/10 transition-all">
+          <div class="text-center space-y-3 p-8">
+            <h4 class="text-2xl font-extrabold text-brand-amber">🏆 GYŐZELEM!</h4>
+            <div class="flex justify-center gap-6 items-center">
+              <div class="w-12 h-12 rounded-full bg-brand-amber flex items-center justify-center text-slate-900 font-bold">A</div>
+              <span class="text-gray-500 font-mono text-sm">VS</span>
+              <div class="w-12 h-12 rounded-full bg-brand-red flex items-center justify-center text-white font-bold">B</div>
+            </div>
+            <p class="text-sm text-gray-400">+24 ELO • 12 lépés • 04:32</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Accessibility Features -->
+    <div class="p-8 rounded-2xl bg-brand-surface border border-white/5 mb-16">
+      <h2 class="text-2xl font-bold mb-6 text-white">♿ Akesszibilitási Funkciók</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="p-4 rounded-xl bg-slate-900 border border-white/5">
+          <div class="text-2xl mb-2">🔊</div>
+          <h4 class="font-semibold text-white text-sm">Hangjelzések</h4>
+          <p class="text-xs text-gray-500 mt-1">Kulcsfontosságú események audio visszajelzéssel</p>
+        </div>
+        <div class="p-4 rounded-xl bg-slate-900 border border-white/5">
+          <div class="text-2xl mb-2">⌨️</div>
+          <h4 class="font-semibold text-white text-sm">Billentyűzet</h4>
+          <p class="text-xs text-gray-500 mt-1">Tab navigáció, Enter/Space kiválasztás, Escape visszavonás</p>
+        </div>
+        <div class="p-4 rounded-xl bg-slate-900 border border-white/5">
+          <div class="text-2xl mb-2">📖</div>
+          <h4 class="font-semibold text-white text-sm">Screen Reader</h4>
+          <p class="text-xs text-gray-500 mt-1">ARIA label-ek minden interaktív elemhez, live region-ök</p>
+        </div>
+        <div class="p-4 rounded-xl bg-slate-900 border border-white/5">
+          <div class="text-2xl mb-2">🎨</div>
+          <h4 class="font-semibold text-white text-sm">Magas Kontraszt</h4>
+          <p class="text-xs text-gray-500 mt-1">WCAG AA compliant színkombinációk, nagyítható UI</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Component Library -->
+    <div class="p-8 rounded-2xl bg-brand-surface border border-white/5 mb-16">
+      <h2 class="text-2xl font-bold mb-6 text-white">🧩 Komponens Könyvtár</h2>
+
+      <!-- Buttons -->
+      <h3 class="text-lg font-semibold text-gray-400 mb-4">Gombok</h3>
+      <div class="flex flex-wrap gap-4 mb-8">
+        <button class="px-6 py-3 bg-brand-amber rounded-full text-sm font-bold text-slate-900 hover:bg-yellow-400 transition-colors">Fő CTA</button>
+        <button class="px-6 py-3 border-2 border-white/15 rounded-full text-sm font-medium text-gray-300 hover:border-brand-amber/50 transition-colors">Másodlagos</button>
+        <button class="px-6 py-3 border-2 border-red-500/40 rounded-full text-sm font-medium text-red-400 hover:bg-red-500/10 transition-colors">Feladás</button>
+      </div>
+
+      <!-- Cards -->
+      <h3 class="text-lg font-semibold text-gray-400 mb-4">Kártyák</h3>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+        <div class="p-5 rounded-xl bg-slate-900 border border-white/5">
+          <p class="text-xs text-gray-500 mb-1">Statisztika</p>
+          <p class="text-2xl font-bold text-brand-amber">347</p>
+          <p class="text-xs text-gray-500 mt-1">Győzelem</p>
+        </div>
+        <div class="p-5 rounded-xl bg-slate-900 border border-white/5">
+          <p class="text-xs text-gray-500 mb-1">ELO Rating</p>
+          <p class="text-2xl font-bold text-white">1847</p>
+          <p class="text-xs text-green-400 mt-1">↑ +24</p>
+        </div>
+        <div class="p-5 rounded-xl bg-slate-900 border border-white/5">
+          <p class="text-xs text-gray-500 mb-1">Nyerési arány</p>
+          <p class="text-2xl font-bold text-white">79.6%</p>
+          <div class="w-full h-2 bg-slate-700 rounded-full mt-2"><div class="h-full w-[79.6%] bg-brand-amber rounded-full"></div></div>
+        </div>
+      </div>
+
+      <!-- Toggle Switches -->
+      <h3 class="text-lg font-semibold text-gray-400 mb-4">Kapcsolók</h3>
+      <div class="flex flex-wrap gap-6">
+        <label class="flex items-center gap-3 cursor-pointer group">
+          <span class="text-sm text-gray-300 group-hover:text-white transition-colors">Hanghatások</span>
+          <div class="w-11 h-6 bg-brand-amber rounded-full relative"><div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow"></div></div>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer group">
+          <span class="text-sm text-gray-300 group-hover:text-white transition-colors">Animációk</span>
+          <div class="w-11 h-6 bg-brand-amber rounded-full relative"><div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow"></div></div>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer group">
+          <span class="text-sm text-gray-300 group-hover:text-white transition-colors">Magas kontraszt</span>
+          <div class="w-11 h-6 bg-slate-700 rounded-full relative"><div class="absolute left-1 top-1 w-4 h-4 bg-gray-500 rounded-full shadow"></div></div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="p-6 rounded-xl bg-yellow-500/10 border border-brand-amber/20">
+      <h3 class="text-lg font-bold text-brand-amber mb-2">💡 Tervezői Megjegyzések</h3>
+      <ul class="space-y-2 text-sm text-gray-400">
+        <li>• Minden SVG kódblokk Penpot-natívan olvasható formatumban van exportálva (rect, circle, line, text, path elemek)</li>
+        <li>• A dizájn rendszer konzisztens spacing skálát használ: 4px alapegység, 8px/16px/24px/32px szorzatok</li>
+        <li>• A tábla SVG-ben van implementálva a pontos geometriai helyesbítés érdekében – Canvas helyett, hogy az SVG skalázhatóság és akesszibilitás előnyeit kihasználjuk</li>
+        <li>• A sötét témát választottuk a hosszú játékmenetek során csökkentsük a szemfáradtságot (digital inclusion)</li>
+      </ul>
+    </div>
+
+  </div>
+
+</body>
+</html>
