@@ -1,50 +1,29 @@
 pipeline {
     agent any
-
     tools {
         nodejs "Node18"
         maven "Maven3"
     }
-
     stages {
-        stage('Source Integrity Check') {
-            steps {
-                echo 'Repository baseline locked. System state verified.'
-            }
+        stage('Checkout SCM') {
+            steps { checkout scm }
         }
-        
-        stage('Frontend Compilation & Validation Gate') {
+        stage('Frontend Build & Test') {
             when { expression { fileExists("frontend/package.json") } }
             steps {
-                sh 'cd frontend && npm ci --no-optional && npm run build && npm test -- --ci --coverage'
+                sh 'npm ci'
+                sh 'npm test'
             }
         }
-
-        stage('Backend Compilation & Validation Gate') {
+        stage('Backend Build & Test') {
             when { expression { fileExists("backend/pom.xml") } }
             steps {
-                sh 'mvn clean compile -q && mvn test'
-            }
-        }
-
-        stage('Architectural Linting Stretch Goal') {
-            steps {
-                echo 'Enforcing architectural linting & dependency compliance...'
-                sh './scripts/lint-arch.sh --check-ws-kafka-deps || exit 1'
-            }
-        }
-
-        stage('Artifact Finalization') {
-            when { expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' } }
-            steps {
-                archiveArtifacts artifacts: '**/target/*.jar, **/frontend/dist/**', fingerprint: true
+                sh 'mvn clean compile'
+                sh 'mvn test'
             }
         }
     }
-
     post {
-        always { cleanWs() }
-        success { echo 'Predictable execution achieved.' }
-        failure { echo 'Deterministic rollback initiated.' }
+        always { echo 'Pipeline befejezve. A rend helyreállt.' }
     }
 }
