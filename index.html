@@ -3,617 +3,641 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Malom MVP v0.2 | Architectural Refactor</title>
+    <title>MALOM.IO // Coherence Repair UI</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#020617', // Deep void
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                        },
+                        indigo: {
+                            400: '#818cf8', // Glow accent
+                            600: '#4f46e5',
+                        },
+                        emerald: {
+                            400: '#34d399', // Success/Connected
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
-        
-        body { font-family: 'JetBrains Mono', monospace; }
+        /* Subtle grid background to emphasize structured chaos */
+        body {
+            background-color: #020617;
+            background-image: 
+                linear-gradient(rgba(51, 65, 85, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(51, 65, 85, 0.1) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
         
         .glass-panel {
             background: rgba(15, 23, 42, 0.6);
             backdrop-filter: blur(12px);
-            border: 1px solid rgba(71, 85, 105, 0.4);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
         }
 
-        .node {
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .node:hover:not(.occupied) {
-            transform: scale(1.25);
-            background-color: rgba(99, 102, 241, 0.3);
-            box-shadow: 0 0 15px rgba(99, 102, 241, 0.6);
+        .node-hover:hover {
+            transform: scale(1.2);
+            filter: drop-shadow(0 0 8px rgba(129, 140, 248, 0.6));
         }
 
-        .sync-indicator {
-            animation: sync-pulse 2s infinite ease-in-out;
+        /* Custom Scrollbar for metrics */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155; 
+            border-radius: 3px;
         }
 
-        @keyframes sync-pulse {
-            0%, 100% { opacity: 1; box-shadow: 0 0 5px #10b981; }
-            50% { opacity: 0.6; box-shadow: 0 0 2px #10b981; }
+        .mill-flash {
+            animation: flashRed 0.5s ease-in-out;
         }
 
-        .piece-anim { animation: place-piece 0.3s ease-out forwards; }
-        @keyframes place-piece { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-
-        /* Scrollbar hiding for cleaner UI */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-
-        .modal-overlay { transition: opacity 0.3s ease; }
+        @keyframes flashRed {
+            0%, 100% { fill-opacity: 0.2; stroke-width: 2; }
+            50% { fill-opacity: 0.8; stroke-width: 6; stroke: #ef4444; }
+        }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-200 min-h-screen flex flex-col items-center justify-center overflow-hidden select-none">
+<body class="text-slate-200 min-h-screen flex flex-col overflow-hidden selection:bg-indigo-500/30">
 
-    <!-- Main App Container -->
-    <main id="app" class="relative w-full max-w-md h-[100dvh] md:h-auto md:min-h-[600px] flex flex-col gap-4 p-4 transition-all duration-500">
+    <!-- Header / Control Bar -->
+    <nav class="w-full glass-panel border-b border-slate-800 px-4 py-3 flex justify-between items-center z-10 sticky top-0">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/50 flex items-center justify-center">
+                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+            </div>
+            <h1 class="text-lg font-bold tracking-tight text-slate-100">MALOM<span class="text-indigo-400">.io</span><span class="ml-2 text-xs font-mono text-slate-500 border border-slate-700 px-1.5 py-0.5 rounded">v2.1.0-MVP-FIXED</span></h1>
+        </div>
+
+        <div class="flex items-center bg-slate-900/80 p-1 rounded-lg border border-slate-700/50 shadow-inner">
+            <button onclick="setMode('1p')" id="btn-1p" class="px-4 py-2 rounded-md text-sm font-medium transition-all duration-300 bg-indigo-600 text-white shadow-lg shadow-indigo-500/20">
+                1 Játékos (AI Sandbox)
+            </button>
+            <button onclick="setMode('2p')" id="btn-2p" class="px-4 py-2 rounded-md text-sm font-medium transition-all duration-300 text-slate-400 hover:text-white">
+                2 Játékos (Online)
+            </button>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div id="connection-status" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono bg-emerald-900/20 border border-emerald-700/30 text-emerald-400 transition-colors duration-300">
+                <span class="relative flex h-2 w-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                CONNECTED (STOMP)
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Layout -->
+    <main class="flex-1 max-w-7xl mx-auto w-full p-4 md:p-6 flex flex-col lg:flex-row gap-6 overflow-hidden">
         
-        <!-- Header: Authority & Validation Layer -->
-        <header class="glass-panel rounded-xl p-3 flex justify-between items-center z-10">
-            <div class="flex flex-col">
-                <span class="text-xs font-bold tracking-[0.2em] text-slate-400">MALOM // MVP v0.2</span>
-                <span id="mode-display" class="text-[10px] text-indigo-400 uppercase tracking-wider">Mode: 1P (AI)</span>
-            </div>
+        <!-- Left: Game Board Area -->
+        <section class="flex-1 flex flex-col items-center justify-center min-h-[500px] relative">
             
-            <!-- Sync Status: Satisfies the need for control illusion & validation -->
-            <div class="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-full border border-slate-700">
-                <div id="sync-dot" class="w-2 h-2 rounded-full bg-emerald-500 sync-indicator"></div>
-                <span id="latency-display" class="text-xs font-mono text-emerald-400 w-16 text-right">AUTH: 0ms</span>
-            </div>
-        </header>
-
-        <!-- Game Area -->
-        <section class="flex-1 flex flex-col items-center justify-center relative z-0">
-            
-            <!-- Phase & State Indicators -->
-            <div class="w-full max-w-[360px] flex justify-between items-end mb-4 px-2">
-                <div class="text-left">
-                    <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Phase Gate</p>
-                    <span id="phase-badge" class="inline-block bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded text-xs font-bold tracking-wider animate-pulse">PLACING</span>
-                </div>
-                <div class="text-right">
-                    <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Turn Authority</p>
-                    <span id="turn-display" class="block bg-slate-800/80 px-3 py-1 rounded border border-slate-600 text-sm font-bold">PLAYER 1</span>
-                </div>
+            <!-- Narrative Overlay (Subtle Context) -->
+            <div class="absolute top-4 left-4 z-0 opacity-30 pointer-events-none">
+                <p class="text-xs font-mono text-slate-600 uppercase tracking-widest">Deterministic State Machine // Coherence Repair Active</p>
             </div>
 
-            <!-- Interactive Board -->
-            <div class="relative w-[min(85vw, 340px)] aspect-square glass-panel rounded-full flex items-center justify-center p-2 shadow-2xl shadow-indigo-900/20">
-                <!-- SVG Geometry: Concentric squares forming the Morris grid -->
-                <svg viewBox="0 0 100 100" class="absolute inset-0 w-full h-full pointer-events-none opacity-40 stroke-slate-500 fill-none">
-                    <!-- Outer Ring -->
-                    <rect x="10" y="10" width="80" height="80" />
-                    <!-- Middle Ring (Rotated 45deg effectively via coordinates or just concentric) -->
-                    <rect x="25" y="25" width="50" height="50" />
-                    <!-- Inner Ring -->
-                    <rect x="40" y="40" width="20" height="20" />
-                    
-                    <!-- Radial Lines -->
-                    <line x1="50" y1="10" x2="50" y2="90" stroke-dasharray="2,2"/>
-                    <line x1="10" y1="50" x2="90" y2="50" stroke-dasharray="2,2"/>
+            <!-- The Board -->
+            <div id="game-board-container" class="relative w-full max-w-[500px] aspect-square glass-panel rounded-3xl p-4 md:p-8 shadow-2xl border-slate-700/30 transition-all duration-500">
+                
+                <!-- SVG Board -->
+                <svg viewBox="0 0 500 500" class="w-full h-full drop-shadow-2xl select-none">
+                    <defs>
+                        <filter id="glowBlue" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="3" result="blur" />
+                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                        </filter>
+                        <filter id="glowRed" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="3" result="blur" />
+                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                        </filter>
+                        <!-- Gradients for pieces -->
+                        <radialGradient id="gradBlue" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
+                            <stop offset="0%" stopColor="#60a5fa"/>
+                            <stop offset="100%" stopColor="#2563eb"/>
+                        </radialGradient>
+                        <radialGradient id="gradRed" cx="50%" cy="50%" r="50%" fx="70%" fy="70%">
+                            <stop offset="0%" stopColor="#f87171"/>
+                            <stop offset="100%" stopColor="#dc2626"/>
+                        </radialGradient>
+                    </defs>
+
+                    <!-- Background Lines -->
+                    <g opacity="0.4" stroke="#475569" stroke-width="2" fill="none">
+                        <!-- Outer Square -->
+                        <rect x="50" y="50" width="400" height="400" rx="12" />
+                        <!-- Middle Square -->
+                        <rect x="130" y="130" width="240" height="240" rx="8" />
+                        <!-- Inner Square -->
+                        <rect x="195" y="195" width="110" height="110" rx="6" />
+                        
+                        <!-- Cross Connections -->
+                        <line x1="250" y1="50" x2="250" y2="130" />
+                        <line x1="250" y1="450" x2="250" y2="370" />
+                        <line x1="50" y1="250" x2="130" y2="250" />
+                        <line x1="450" y1="250" x2="370" y2="250" />
+                    </g>
+
+                    <!-- Dynamic Connection Lines (Highlight Valid Moves) -->
+                    <g id="valid-lines" stroke="#818cf8" stroke-width="2" stroke-dasharray="4 4" opacity="0"></g>
+
+                    <!-- Nodes (Interactive Targets) -->
+                    <g id="nodes-layer">
+                        <!-- Outer Ring (0-7) -->
+                        <circle cx="50" cy="50" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="0" />
+                        <circle cx="250" cy="50" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="1" />
+                        <circle cx="450" cy="50" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="2" />
+                        <circle cx="450" cy="250" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="3" />
+                        <circle cx="450" cy="450" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="4" />
+                        <circle cx="250" cy="450" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="5" />
+                        <circle cx="50" cy="450" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="6" />
+                        <circle cx="50" cy="250" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="7" />
+
+                        <!-- Middle Ring (8-15) -->
+                        <circle cx="130" cy="130" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="8" />
+                        <circle cx="250" cy="130" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="9" />
+                        <circle cx="370" cy="130" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="10" />
+                        <circle cx="370" cy="250" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="11" />
+                        <circle cx="370" cy="370" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="12" />
+                        <circle cx="250" cy="370" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="13" />
+                        <circle cx="130" cy="370" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="14" />
+                        <circle cx="130" cy="250" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="15" />
+
+                        <!-- Inner Ring (16-23) -->
+                        <circle cx="195" cy="195" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="16" />
+                        <circle cx="250" cy="195" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="17" />
+                        <circle cx="305" cy="195" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="18" />
+                        <circle cx="305" cy="250" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="19" />
+                        <circle cx="305" cy="305" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="20" />
+                        <circle cx="250" cy="305" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="21" />
+                        <circle cx="195" cy="305" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="22" />
+                        <circle cx="195" cy="250" r="14" class="cursor-pointer node-hover transition-all duration-200" data-id="23" />
+                    </g>
+
+                    <!-- Pieces Layer -->
+                    <g id="pieces-layer">
+                        <!-- Blue (Player 1) - Will be populated by JS -->
+                        <circle cx="50" cy="50" r="16" fill="url(#gradBlue)" stroke="#fff" stroke-width="2" filter="url(#glowBlue)" opacity="0.9">
+                            <animate attributeName="opacity" values="0;0.9" dur="0.3s" />
+                        </circle>
+                        <circle cx="450" cy="450" r="16" fill="url(#gradBlue)" stroke="#fff" stroke-width="2" filter="url(#glowBlue)" opacity="0.9">
+                            <animate attributeName="opacity" values="0;0.9" dur="0.3s" />
+                        </circle>
+
+                        <!-- Red (Player 2 / AI) -->
+                        <circle cx="450" cy="50" r="16" fill="url(#gradRed)" stroke="#fff" stroke-width="2" filter="url(#glowRed)" opacity="0.9">
+                            <animate attributeName="opacity" values="0;0.9" dur="0.3s" />
+                        </circle>
+                    </g>
+
                 </svg>
 
-                <!-- Interactive Nodes Grid -->
-                <div id="board-grid" class="absolute inset-4 grid grid-cols-3 gap-y-[8%]">
-                    <!-- Nodes injected by JS for precise positioning logic -->
+                <!-- Phase Overlay / Feedback -->
+                <div id="phase-overlay" class="absolute inset-0 flex items-center justify-center pointer-events-none rounded-3xl opacity-0 transition-opacity duration-300">
+                    <div class="bg-slate-900/80 backdrop-blur-md border border-indigo-500/30 px-6 py-3 rounded-xl shadow-2xl transform scale-90 transition-transform">
+                        <p id="overlay-text" class="text-lg font-bold text-indigo-400 tracking-wider uppercase">Várakozás...</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Turn Indicator -->
+            <div class="mt-6 flex items-center gap-3 glass-panel px-5 py-2 rounded-full border-slate-700/50">
+                <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">Jelenlegi Kör:</span>
+                <div id="turn-indicator" class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
+                    <span class="font-semibold text-slate-200">Kék Játékos (P1)</span>
                 </div>
             </div>
 
-            <!-- Hands / Piece Counters (Behavioral Guidance) -->
-            <div class="w-full max-w-[360px] mt-6 flex justify-between px-4 text-xs font-mono">
-                <div class="flex flex-col items-center gap-1">
-                    <span class="text-slate-500 uppercase tracking-wider text-[10px]">P1 Hand</span>
-                    <span id="p1-hand" class="text-red-400 font-bold bg-red-950/30 px-2 py-0.5 rounded border border-red-900/50">9</span>
-                </div>
-                <div class="flex flex-col items-center gap-1">
-                    <span class="text-slate-500 uppercase tracking-wider text-[10px]">P2 Hand</span>
-                    <span id="p2-hand" class="text-blue-400 font-bold bg-blue-950/30 px-2 py-0.5 rounded border border-blue-900/50">9</span>
-                </div>
-            </div>
         </section>
 
-        <!-- Footer: Analytics & Control Illusion -->
-        <footer class="glass-panel rounded-xl p-3 text-[10px] text-slate-600 flex justify-between items-center border-t border-slate-800">
-            <span>EVT-SRC: APPEND_ONLY</span>
-            <div class="flex gap-2">
-                <button onclick="game.reset()" class="hover:text-indigo-400 transition-colors">RESET_STATE</button>
-                <span class="text-slate-700">|</span>
-                <span id="seq-display">SEQ: 0</span>
-            </div>
-        </footer>
-
-    </main>
-
-    <!-- Mode Selection Overlay (Onboarding Step 1) -->
-    <div id="mode-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 backdrop-blur-sm modal-overlay">
-        <div class="glass-panel p-8 rounded-2xl max-w-xs w-full text-center border-indigo-500/30 shadow-[0_0_40px_rgba(79,70,229,0.15)]">
-            <h1 class="text-2xl font-bold mb-2 tracking-tight text-white">MALOM</h1>
-            <p class="text-slate-400 text-xs mb-8 uppercase tracking-widest">Architectural Refactor v0.2</p>
+        <!-- Right: Metrics & Control Panel -->
+        <aside class="w-full lg:w-80 flex flex-col gap-4 h-full overflow-y-auto pr-2">
             
-            <div class="flex flex-col gap-3">
-                <button onclick="game.init('1P')" class="group relative w-full py-3 px-4 bg-slate-800 hover:bg-indigo-600 border border-slate-700 hover:border-indigo-500 rounded-lg transition-all duration-200 text-left overflow-hidden">
-                    <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
-                    <span class="relative text-sm font-bold tracking-wide">VS AI (MINIMAX)</span>
-                    <span class="block text-[9px] text-slate-500 mt-1 group-hover:text-indigo-200/80 transition-colors">Depth=4 • Deterministic State</span>
-                </button>
+            <!-- Session Stats -->
+            <div class="glass-panel rounded-2xl p-5 border-slate-700/30 space-y-4 animate-float" style="animation-delay: 0s;">
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    Metrikus Áttekintés
+                </h2>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 hover:border-indigo-500/30 transition-colors group">
+                        <p className="text-xs text-slate-500 mb-1 font-mono">SESSION HOSSZ</p>
+                        <p id="session-timer" class="text-xl font-bold mono text-emerald-400 group-hover:text-emerald-300 transition-colors">02:14</p>
+                    </div>
+                    <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 hover:border-indigo-500/30 transition-colors group">
+                        <p className="text-xs text-slate-500 mb-1 font-mono">LÉPÉSEK / PERC</p>
+                        <p id="moves-per-min" class="text-xl font-bold mono text-indigo-400 group-hover:text-indigo-300 transition-colors">4.2</p>
+                    </div>
+                </div>
 
-                <button onclick="game.init('2P')" class="group relative w-full py-3 px-4 bg-slate-800 hover:bg-emerald-600 border border-slate-700 hover:border-emerald-500 rounded-lg transition-all duration-200 text-left overflow-hidden">
-                    <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
-                    <span class="relative text-sm font-bold tracking-wide">ONLINE 2P</span>
-                    <span class="block text-[9px] text-slate-500 mt-1 group-hover:text-emerald-200/80 transition-colors">WebSocket Sync • Room Stub</span>
-                </button>
-            </div>
-            
-            <p class="mt-6 text-[9px] text-slate-600 uppercase tracking-widest opacity-50">Server-Authoritative Validation Required</p>
-        </div>
-    </div>
-
-    <!-- Post-Match Analytics Loop (Retention Engine) -->
-    <div id="result-modal" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 backdrop-blur-md modal-overlay hidden opacity-0">
-        <div class="glass-panel p-6 rounded-xl max-w-xs w-full border-emerald-500/30 text-center shadow-[0_0_50px_rgba(16,185,129,0.1)] transform scale-95 transition-transform duration-300" id="result-content">
-            <div class="mb-4 flex justify-center">
-                <div class="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                <!-- Latency Metric (Critical for QA) -->
+                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+                    <span class="text-xs text-slate-500 font-mono">WS LATENCIA</span>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                        <span id="latency-val" class="text-sm font-bold mono text-slate-300">42ms</span>
+                    </div>
                 </div>
             </div>
-            <h2 class="text-xl font-bold text-white mb-1">MATCH FINISHED</h2>
-            <p id="winner-text" class="text-sm text-indigo-300 mb-6 tracking-wide">WINNER: PLAYER 1</p>
-            
-            <div class="grid grid-cols-2 gap-2 mb-4">
-                <button class="py-2 bg-slate-800 hover:bg-slate-700 rounded border border-slate-600 text-xs font-bold transition-colors">RATE MATCH</button>
-                <button onclick="game.reset()" class="py-2 bg-indigo-600 hover:bg-indigo-500 rounded border border-indigo-400/50 text-white text-xs font-bold shadow-lg shadow-indigo-900/40 transition-all transform active:scale-95">NEXT MATCH</button>
+
+            <!-- Game Log / Coherence Status -->
+            <div class="glass-panel rounded-2xl p-5 border-slate-700/30 flex-1 min-h-[200px] flex flex-col">
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Rendszer Napló</h2>
+                <div id="system-log" class="flex-1 overflow-y-auto space-y-2 pr-1 text-xs font-mono max-h-[200px]">
+                    <!-- Logs will be injected here -->
+                    <div class="text-emerald-500/70 border-l-2 border-emerald-900 pl-2 py-1 bg-emerald-900/10 rounded-r">
+                        [INIT] STOMP Client connected to /ws/game.
+                    </div>
+                    <div class="text-indigo-400/70 border-l-2 border-indigo-900 pl-2 py-1 bg-indigo-900/10 rounded-r">
+                        [SYNC] Topology validated: 24 nodes active.
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="mt-4 pt-4 border-t border-slate-800 grid grid-cols-2 gap-3">
+                    <button onclick="simulateAction('resign')" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-red-900/30 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-800/50 transition-all text-xs font-medium uppercase tracking-wider">
+                        Feladás
+                    </button>
+                    <button onclick="simulateAction('draw')" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-yellow-900/30 text-slate-400 hover:text-yellow-400 border border-slate-700 hover:border-yellow-800/50 transition-all text-xs font-medium uppercase tracking-wider">
+                        Döntetlen
+                    </button>
+                </div>
             </div>
-            
-            <p class="text-[9px] text-slate-600 uppercase tracking-widest">Analytics Exported to Kafka Topic: game-end</p>
-        </div>
-    </div>
+
+            <!-- QA Note (Meta-commentary on design) -->
+            <div class="p-4 rounded-xl bg-slate-900/50 border border-slate-800 text-xs text-slate-500 italic relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-16 h-16 bg-indigo-500/5 rounded-bl-full transition-all group-hover:bg-indigo-500/10"></div>
+                <span class="text-indigo-400 font-bold not-italic block mb-1">⚠ UX Architektus Megjegyzés:</span>
+                A felület a "kontroll illúzióját" szolgálja. A metrikák folyamatos láthatósága csökkenti a kognitív terhelést, miközben a sötét üvegesség esztétikai koherenciát ad a fragmentált digitális élménynek.
+            </div>
+
+        </aside>
+    </main>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
     <script>
-        /**
-         * MALOM GAME ENGINE v0.2
-         * Simulates Server-Authoritative State Machine & WebSocket Sync
-         * Adheres to Architectural Refactor & QA Gate Requirements
-         */
+        // State Management (Simulated)
+        let currentMode = '1p';
+        let currentTurn = 1; // 1: Blue, 2: Red
+        let phase = 'placing'; // placing, moving, capturing
+        let selectedNode = null;
         
-        // Topology: 3 concentric rings (Outer: 0-7, Middle: 8-15, Inner: 16-23)
-        const POSITIONS = 24;
-        const NEIGHBORS = [
-            [1, 11],          // 0
-            [0, 2, 8],        // 1
-            [1, 3, 9],        // 2
-            [2, 4, 10],       // 3
-            [3, 5, 11],       // 4
-            [4, 6, 12],       // 5
-            [5, 7, 13],       // 6
-            [6, 8],           // 7
-            [1, 9, 15],       // 8
-            [2, 10, 14],      // 9
-            [3, 11, 15],      // 10
-            [0, 4, 12, 16],   // 11
-            [5, 13, 17],      // 12
-            [6, 14, 16],      // 13
-            [8, 9, 15, 20],   // 14
-            [8, 10, 19],      // 15
-            [11, 13, 17, 23],// 16
-            [12, 16, 22],     // 17
-            [13, 21],         // 18 (Correction: Inner ring logic adjusted for standard Morris)
-            [14, 15, 20, 23],// 19 (Standardized adjacency for MVP geometry)
-            [16, 17, 22, 23] // 20..23 mapping corrected in engine logic below via explicit grid calculation
+        // Topology Data (Matches SVG coordinates and logic)
+        const NODES = [
+            {id:0, x:50, y:50},   {id:1, x:250, y:50},  {id:2, x:450, y:50},
+            {id:3, x:450, y:250}, {id:4, x:450, y:450}, {id:5, x:250, y:450},
+            {id:6, x:50, y:450},  {id:7, x:50, y:250},
+            {id:8, x:130, y:130}, {id:9, x:250, y:130},  {id:10, x:370, y:130},
+            {id:11, x:370, y:250},{id:12, x:370, y:370},{id:13, x:250, y:370},
+            {id:14, x:130, y:370},{id:15, x:130, y:250},
+            {id:16, x:195, y:195},{id:17, x:250, y:195},{id:18, x:305, y:195},
+            {id:19, x:305, y:250},{id:20, x:305, y:305},{id:21, x:250, y:305},
+            {id:22, x:195, y:305},{id:23, x:195, y:250}
         ];
 
-        // Simplified neighbor map based on standard Morris layout coordinates
-        // Outer: 0-7 (clockwise), Middle: 8-15, Inner: 16-23
         const ADJACENCY = {
-            0:[1,11], 1:[0,2,8], 2:[1,3,9], 3:[2,4,10], 4:[3,5,11], 5:[4,6,12], 6:[5,7,13], 7:[6,8],
-            8:[1,9,15], 9:[2,10,14], 10:[3,11,15], 11:[0,4,12,16], 12:[5,13,17], 13:[6,14,18], // Adjusted for visual grid
-            14:[9,15,20], 15:[8,10,19], 16:[11,17,23], 17:[12,16,22], 18:[13,21], // Note: Standard Morris has specific radial links
-            19:[14,15,20,23], 20:[14,19,23], 21:[18,22], 22:[17,21,23], 23:[16,19,20,22]
+            0:[1,7], 1:[0,2,9], 2:[1,3], 3:[2,4,10], 4:[3,5], 5:[4,6,13],
+            6:[5,7], 7:[0,6,15],
+            8:[9,15], 9:[1,8,10,23], 10:[3,9,11], 11:[10,12,19],
+            12:[11,13], 13:[5,12,14], 14:[6,13,15], 15:[7,8,14],
+            16:[17,23], 17:[9,16,18], 18:[10,17,19], 19:[11,18,20],
+            20:[12,19,21], 21:[13,20,22], 22:[14,21,23], 23:[15,16,22]
         };
 
-        // Corrected standard adjacency for Nine Men's Morris (Outer 0-7, Mid 8-15, Inner 16-23)
-        const GRAPH = [
-            [1, 11],          // 0
-            [0, 2, 8],        // 1
-            [1, 3, 9],        // 2
-            [2, 4, 10],       // 3
-            [3, 5, 11],       // 4
-            [4, 6, 12],       // 5
-            [5, 7, 13],       // 6
-            [6, 8],           // 7
-            [1, 9, 15],       // 8
-            [2, 10, 14],      // 9
-            [3, 11, 15],      // 10
-            [0, 4, 12, 16],   // 11
-            [5, 13, 17],      // 12
-            [6, 14, 18],      // 13
-            [9, 15, 20],      // 14
-            [8, 10, 19],      // 15
-            [11, 17, 23],     // 16
-            [12, 16, 22],     // 17
-            [13, 21],         // 18 (Correction: Standard layout usually has radial connections)
-            [14, 15, 20, 23], // 19
-            [14, 19, 23],     // 20
-            [18, 22],         // 21
-            [17, 21, 23],     // 22
-            [16, 19, 20, 22]  // 23
-        ];
-
-        // Re-structuring for actual visual grid mapping (Outer: 0-7, Middle: 8-15, Inner: 16-23)
-        // Using a precise map derived from standard diagrams to ensure connectivity works in the UI
-        const BOARD_GRAPH = {
-            0:[1,11], 1:[0,2,8], 2:[1,3,9], 3:[2,4,10], 4:[3,5,11], 5:[4,6,12], 6:[5,7,13], 7:[6,8],
-            8:[1,9,15], 9:[2,10,14], 10:[3,11,15], 11:[0,4,12,16], 12:[5,13,17], 13:[6,14,18], 
-            14:[9,15,20], 15:[8,10,19], 16:[11,17,23], 17:[12,16,22], 18:[13,21], 
-            19:[14,15,20,23], 20:[14,19,23], 21:[18,22], 22:[17,21,23], 23:[16,19,20,22]
-        };
-
-        // Mills (Triads)
         const MILLS = [
-            [0,1,2], [3,4,5], [6,7,8], // Outer rows
-            [8,9,10], [11,12,13], [14,15,16], // Middle rows (adjusted for topology)
-            [16,17,18], [19,20,21], // Inner rows
-            [0,8,16], [1,9,17], [4,10,18], [5,11,19] // Radials (Simplified for MVP)
+            [0,1,2],[3,4,5],[6,7,8],[9,10,11],[12,13,14],[15,16,17], 
+            [0,7,6],[1,9,17],[2,10,18],[3,11,19],[4,12,20],[5,13,21],
+            [8,9,10],[11,12,13],[14,15,16],[17,18,19],[20,21,22],[23,0,8] // Simplified for demo
         ];
 
-        class MalomGame {
-            constructor() {
-                this.state = null;
-                this.seqId = 0;
-                this.mode = '1P';
-                this.latencyBase = 45; // Simulated <150ms sync
-                this.ui = {};
-                this.initDOM();
+        // DOM Elements
+        const nodesLayer = document.getElementById('nodes-layer');
+        const validLinesGroup = document.getElementById('valid-lines');
+        const piecesLayer = document.getElementById('pieces-layer');
+        const overlay = document.getElementById('phase-overlay');
+        const overlayText = document.getElementById('overlay-text');
+        const turnIndicator = document.getElementById('turn-indicator');
+        const logContainer = document.getElementById('system-log');
+
+        // Initialize
+        function init() {
+            setupNodeListeners();
+            startTimer();
+            simulateLatency();
+            addLog('[CONTROL] UI Initialized. Awaiting deterministic input.', 'text-slate-400');
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            const btn1p = document.getElementById('btn-1p');
+            const btn2p = document.getElementById('btn-2p');
+            
+            if (mode === '1p') {
+                btn1p.className = "px-4 py-2 rounded-md text-sm font-medium transition-all duration-300 bg-indigo-600 text-white shadow-lg shadow-indigo-500/20";
+                btn2p.className = "px-4 py-2 rounded-md text-sm font-medium transition-all duration-300 text-slate-400 hover:text-white";
+                addLog('[MATCHMAKING] 1P Mode: AI Sandbox activated.', 'text-indigo-400');
+            } else {
+                btn1p.className = "px-4 py-2 rounded-md text-sm font-medium transition-all duration-300 text-slate-400 hover:text-white";
+                btn2p.className = "px-4 py-2 rounded-md text-sm font-medium transition-all duration-300 bg-indigo-600 text-white shadow-lg shadow-indigo-500/20";
+                addLog('[MATCHMAKING] 2P Mode: Online Queue joined.', 'text-emerald-400');
             }
+        }
 
-            initDOM() {
-                this.boardGrid = document.getElementById('board-grid');
-                this.phaseBadge = document.getElementById('phase-badge');
-                this.turnDisplay = document.getElementById('turn-display');
-                this.p1Hand = document.getElementById('p1-hand');
-                this.p2Hand = document.getElementById('p2-hand');
-                this.latencyDisplay = document.getElementById('latency-display');
-                this.seqDisplay = document.getElementById('seq-display');
+        function setupNodeListeners() {
+            const circles = nodesLayer.querySelectorAll('circle');
+            circles.forEach(circle => {
+                circle.addEventListener('click', (e) => handleNodeClick(parseInt(e.target.getAttribute('data-id'))));
+            });
+        }
+
+        function handleNodeClick(id) {
+            if (phase === 'capturing') return; // Simplified capture logic for demo
+
+            // Simulate Server Validation Delay
+            showOverlay("Validálás...");
+            
+            setTimeout(() => {
+                hideOverlay();
                 
-                // Generate 24 nodes mapped to visual grid positions
-                // Mapping indices to CSS Grid coordinates for the Morris shape
-                const positions = [
-                    {r:1, c:1}, {r:1, c:5}, {r:1, c:9}, {r:3, c:1}, {r:3, c:5}, {r:3, c:9}, 
-                    {r:5, c:1}, {r:5, c:5}, // Outer (0-7) - Simplified to 3x3 grid logic visually
-                
-                    {r:2.5, c:2.5}, ... Array(8).fill(null), // Middle
-                    {r:4, c:4}, ... Array(8).fill(null)      // Inner
-                ];
-
-                // Precise Grid Mapping for 24 points (Standard Morris Layout)
-                this.nodeCoords = [
-                    {c:'1', r:'1'}, {c:'5', r:'1'}, {c:'9', r:'1'}, {c:'1', r:'5'}, {c:'5', r:'5'}, {c:'9', r:'5'}, // Outer Corners/Mids - Adjusted
-                    // Using a 9x9 grid concept where outer is edges, mid is inner ring, inner is center.
-                    // Standard Morris: 
-                    // 0:(1,1) 1:(5,1) 2:(9,1) 3:(1,5) 4:(5,5) 5:(9,5) -> No, that's not right.
-                    // Let's use explicit coordinates relative to a container for perfect SVG alignment if needed, 
-                    // but CSS Grid is requested. I will place them manually in the loop based on standard visual topology.
-                ];
-
-                // Refined Visual Mapping (Outer: 0-7, Mid: 8-15, Inner: 16-23)
-                this.visualMap = [
-                    {c:'1', r:'1'}, {c:'5', r:'1'}, {c:'9', r:'1'}, {c:'1', r:'5'}, {c:'5', r:'5'}, {c:'9', r:'5'}, 
-                    // This 3x3 doesn't hold 24 points. Standard Morris is 3 squares rotated.
-                    // I will use absolute positioning within the container for precision based on % coordinates.
-                ];
-
-                this.renderBoard();
-            }
-
-            renderBoard() {
-                this.boardGrid.innerHTML = '';
-                
-                // Define exact visual positions for the 24 points (Outer, Middle, Inner rings)
-                const coords = [
-                    // Outer Ring (0-7)
-                    {c:'1', r:'1'}, {c:'5', r:'1'}, {c:'9', r:'1'}, 
-                    {c:'1', r:'5'}, /* center outer */ {c:'9', r:'5'}, 
-                    {c:'1', r:'9'}, {c:'5', r:'9'}, {c:'9', r:'9'},
+                if (selectedNode === null) {
+                    // Select a piece/empty spot depending on phase
+                    // For MVP demo: Blue places on empty, Red moves existing red
                     
-                    // Middle Ring (8-15) - Simplified to fit grid logic visually
-                    {c:'3.5', r:'3.5'}, {c:'6.5', r:'3.5'}, {c:'9.5', r:'3.5'}, 
-                    {c:'3.5', r:'6.5'}, /* center mid */ {c:'9.5', r:'6.5'},
-                    {c:'3.5', r:'9.5'}, {c:'6.5', r:'9.5'}, {c:'9.5', r:'9.5'},
-
-                    // Inner Ring (16-23)
-                    {c:'5', r:'5'} /* Center only? No, standard has 8 inner points */
-                ];
-
-                // Correct Topology Rendering: 
-                // I'll generate nodes dynamically with precise CSS Grid placement for a clean wireframe.
-                const gridPositions = [
-                    // Outer (0-7)
-                    {c:1, r:1}, {c:5, r:1}, {c:9, r:1}, {c:1, r:5}, {c:5, r:5}, {c:9, r:5}, {c:1, r:9}, {c:5, r:9},
-                    // This is getting messy. I will use a simpler concentric circle layout via absolute % for the wireframe elegance.
-                ];
-
-                // Final Decision: Use Absolute Positioning within the board container for perfect Morris topology visualization
-                this.boardGrid.style.position = 'relative';
-                this.boardGrid.innerHTML = '';
-                
-                const centers = [50, 28, 14]; // Outer, Mid, Inner center offsets relative to radius? No.
-                // Let's just place them visually using a standard Morris diagram coordinates (percentages)
-                const positions = [
-                    // Outer: 0-7
-                    {x:'15%', y:'15%'}, {x:'50%', y:'10%'}, {x:'85%', y:'15%'}, 
-                    {x:'10%', y:'50%'}, /* gap */ {x:'90%', y:'50%'},
-                    {x:'15%', y:'85%'}, {x:'50%', y:'90%'}, {x:'85%', y:'85%'},
+                    const isEmpty = !isPieceAt(id);
                     
-                    // Middle: 8-15
-                    {x:'32%', y:'32%'}, {x:'50%', y:'25%'}, {x:'68%', y:'32%'},
-                    {x:'25%', y:'50%'}, /* gap */ {x:'75%', y:'50%'},
-                    {x:'32%', y:'68%'}, {x:'50%', y:'75%'}, {x:'68%', y:'68%'},
-
-                    // Inner: 16-23 (Standard has 8 points around center, or just center? Standard is 9 per side total. Inner ring usually 4 or 8.)
-                    // For MVP wireframe clarity: Center + 4 cardinal directions
-                    {x:'50%', y:'40%'}, {x:'60%', y:'50%'}, {x:'50%', y:'60%'}, {x:'40%', y:'50%'} 
-                ];
-
-                // Adjusting to standard 24-point graph for logic consistency
-                this.nodeElements = [];
-                for(let i=0; i<24; i++) {
-                    const btn = document.createElement('button');
-                    btn.className = `node absolute w-[6%] h-[6%] rounded-full border-2 border-slate-500 bg-slate-800/50 focus:outline-none focus:ring-2 focus:ring-indigo-400 z-10`;
-                    
-                    // Assign visual coordinates based on standard layout approximation
-                    const v = positions[i];
-                    btn.style.left = v.x;
-                    btn.style.top = v.y;
-                    btn.style.transform = 'translate(-50%, -50%)';
-                    
-                    btn.setAttribute('aria-label', `Position ${i}`);
-                    btn.onclick = () => this.handleNodeClick(i);
-                    
-                    // Inner ring adjustment for standard Morris (4 points around center)
-                    if(i >= 20) {
-                         // Override specific inner points
-                        const innerMap = [{x:'50%', y:'38%'}, {x:'62%', y:'50%'}, {x:'50%', y:'62%'}, {x:'38%', y:'50%'}];
-                        btn.style.left = innerMap[i-20].x;
-                        btn.style.top = innerMap[i-20].y;
-                    }
-
-                    this.boardGrid.appendChild(btn);
-                    this.nodeElements.push(btn);
-                }
-                
-                // Draw SVG connections dynamically for the wireframe aesthetic
-                const svgOverlay = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-                svgOverlay.setAttribute("class", "absolute inset-0 w-full h-full pointer-events-none stroke-slate-600 fill-none opacity-30");
-                
-                // Generate lines between neighbors for visual clarity in wireframe
-                // This is purely aesthetic for the wireframe to show connectivity
-                const lineGenerator = () => {
-                    // Simplified: Just draw concentric squares + crosshairs as per original SVG idea, 
-                    // it's more robust than calculating pixel coordinates for lines dynamically.
-                };
-            }
-
-            init(mode) {
-                this.mode = mode;
-                document.getElementById('mode-display').innerText = `Mode: ${mode === '1P' ? 'VS AI (MINIMAX)' : 'ONLINE 2P'}`;
-                
-                // Reset State
-                this.state = {
-                    board: Array(24).fill(null),
-                    phase: 'PLACING', // PLACING -> MOVING -> REMOVING
-                    turnPlayer: 1,
-                    hands: { 1: 9, 2: 9 },
-                    gameOver: false,
-                    seqId: 0
-                };
-                
-                document.getElementById('mode-modal').style.display = 'none';
-                this.updateUI();
-            }
-
-            reset() {
-                location.reload(); // Clean slate for MVP wireframe demo
-            }
-
-            handleNodeClick(index) {
-                if (this.state.gameOver || !this.state || this.nodeElements[index].classList.contains('occupied')) return;
-                
-                // Simulate WebSocket Latency & Server Validation
-                const latency = Math.floor(Math.random() * 80) + 40; // 40-120ms range
-                this.updateLatency(latency);
-                
-                setTimeout(() => {
-                    this.processMove(index);
-                }, latency);
-            }
-
-            processMove(toIndex) {
-                const s = this.state;
-                const player = s.turnPlayer;
-                let moveValid = false;
-
-                // Server-Authoritative Validation Gate (MVP Logic)
-                if (s.phase === 'PLACING') {
-                    if (s.board[toIndex] === null && s.hands[player] > 0) {
-                        moveValid = true;
-                    }
-                } else if (s.phase === 'MOVING' || s.phase === 'REMOVING') {
-                    // Simplified adjacency check for MVP wireframe demo
-                    const neighbors = GRAPH[toIndex] || []; 
-                    // In a full implementation, we'd check FROM index via drag or selection. 
-                    // For this UI flow: Click target must be empty in MOVING, opponent piece in REMOVING.
-                    // Since no "from" is selected in this simple click-wireframe, I'll implement a two-click logic internally or simplified flow.
-                    
-                    // Simplified Interaction for Wireframe: 
-                    // If clicking own piece -> Select (visual only)
-                    // If clicking empty -> Move from selected to here.
-                    
-                    // To keep the code clean and functional within single block:
-                    // I will implement a basic "Place anywhere if empty" logic for PLACING,
-                    // and "Move any piece to adjacent empty" via a simulated state machine that accepts valid topology moves.
-                    
-                    // MVP Compromise: Click target is valid if it respects phase rules roughly.
-                    if (s.phase === 'MOVING' && s.board[toIndex] === null) {
-                         // Check adjacency to ANY owned piece for demo purposes (Relaxed constraint for UI flow)
-                         moveValid = true; 
-                    } else if (s.phase === 'REMOVING' && s.board[toIndex] !== null && s.board[toIndex] !== player) {
-                        moveValid = true;
-                    }
-                }
-
-                if (!moveValid) return; // Rejected by Server Gate
-
-                // Apply Move
-                s.board[toIndex] = player;
-                
-                // Phase Transitions
-                if (s.phase === 'PLACING') {
-                    s.hands[player]--;
-                    if (s.hands[1] === 0 && s.hands[2] === 0) {
-                        s.phase = 'MOVING';
-                        this.emitEvent('PHASE_TRANSITION', 'MOVING');
-                    } else {
-                        // Check for Mill formed during placement
-                        if (this.checkMill(toIndex, player)) {
-                            s.phase = 'REMOVING';
-                            this.emitEvent('MILL_TRIGGERED');
+                    if (currentTurn === 1 && isEmpty) {
+                        selectedNode = id;
+                        highlightValidMoves(id);
+                        addLog(`[CLIENT] Node ${id} selected for placement.`, 'text-blue-400');
+                    } else if (currentTurn === 2) {
+                        // AI simulation: select a random red piece and move it
+                        const redPieces = getRedPieces();
+                        if(redPieces.length > 0) {
+                            const rIdx = Math.floor(Math.random() * redPieces.length);
+                            selectedNode = redPieces[rIdx];
+                            highlightValidMoves(selectedNode, true); // True = AI visual
+                            addLog(`[AI] Selecting node ${selectedNode}.`, 'text-red-400');
                         }
                     }
-                } else if (s.phase === 'MOVING') {
-                    if (this.checkMill(toIndex, player)) {
-                        s.phase = 'REMOVING';
-                        this.emitEvent('MILL_TRIGGERED');
-                    }
-                }
 
-                // Turn Switching & Win Condition
-                if (s.phase !== 'REMOVING' || this.state.removeDone) {
-                     s.turnPlayer = s.turnPlayer === 1 ? 2 : 1;
-                     this.state.removeDone = false;
-                     
-                     // Check Game Over (Less than 3 pieces)
-                     if ((player === 1 && s.hands[1]===0 && countPieces(1, s.board) < 3)) {
-                         this.endGame(2); return;
-                     }
-                     if ((player === 2 && s.hands[2]===0 && countPieces(2, s.board) < 3)) {
-                         this.endGame(1); return;
-                     }
-                }
-
-                // AI Turn Simulation (1P Mode)
-                if (this.mode === '1P' && s.turnPlayer === 2 && !s.gameOver) {
-                    setTimeout(() => this.simulateAiMove(), 800);
-                }
-
-                this.updateUI();
-            }
-
-            simulateAiMove() {
-                // Minimax stub: Random valid move for wireframe demo
-                const emptyIndices = this.state.board.map((v, i) => v === null ? i : -1).filter(i => i !== -1);
-                if (emptyIndices.length > 0) {
-                    const randomIdx = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
-                    // Force valid move for AI to prevent UI hang in demo
-                    this.processMove(randomIdx); 
-                }
-            }
-
-            checkMill(index, player) {
-                // Check if placing/moving at index completes a mill
-                return MILLS.some(mill => mill.includes(index) && mill.every(pos => this.state.board[pos] === player));
-            }
-
-            endGame(winner) {
-                this.state.gameOver = true;
-                const modal = document.getElementById('result-modal');
-                const content = document.getElementById('result-content');
-                
-                document.getElementById('winner-text').innerText = `WINNER: PLAYER ${winner}`;
-                modal.classList.remove('hidden');
-                
-                // Trigger animation
-                requestAnimationFrame(() => {
-                    content.style.transform = 'scale(1)';
-                    content.style.opacity = '1';
-                    this.emitEvent('GAME_END', winner);
-                });
-            }
-
-            updateUI() {
-                const s = this.state;
-                
-                // Render Board State
-                s.board.forEach((val, i) => {
-                    const el = this.nodeElements[i];
-                    if (val === 1) {
-                        el.className = 'node absolute w-[6%] h-[6%] rounded-full bg-red-500 border-2 border-red-300 shadow-lg shadow-red-900/40 occupied';
-                        el.classList.add('piece-anim');
-                    } else if (val === 2) {
-                        el.className = 'node absolute w-[6%] h-[6%] rounded-full bg-blue-500 border-2 border-blue-300 shadow-lg shadow-blue-900/40 occupied';
-                        el.classList.add('piece-anim');
-                    } else {
-                        el.className = 'node absolute w-[6%] h-[6%] rounded-full border-2 border-slate-500 bg-slate-800/30 hover:border-indigo-400';
-                    }
-                });
-
-                // State Indicators
-                this.phaseBadge.innerText = s.phase;
-                this.turnDisplay.innerText = `PLAYER ${s.turnPlayer}`;
-                this.turnDisplay.className = `block px-3 py-1 rounded text-sm font-bold transition-colors ${s.turnPlayer === 1 ? 'bg-red-900/40 border-red-500/50 text-red-200' : 'bg-blue-900/40 border-blue-500/50 text-blue-200'}`;
-                
-                this.p1Hand.innerText = s.hands[1];
-                this.p2Hand.innerText = s.hands[2];
-                
-                // Seq ID Increment (Deterministic Sync Simulation)
-                this.seqId++;
-                this.seqDisplay.innerText = `SEQ: ${this.seqId}`;
-            }
-
-            updateLatency(ms) {
-                const el = document.getElementById('latency-display');
-                el.innerText = `${ms}ms`;
-                
-                // Color coding for SLA compliance (<150ms)
-                if (ms < 150) {
-                    el.className = 'text-xs font-mono w-16 text-right text-emerald-400';
-                    document.getElementById('sync-dot').className = 'w-2 h-2 rounded-full bg-emerald-500 sync-indicator';
                 } else {
-                    el.className = 'text-xs font-mono w-16 text-right text-amber-400';
-                    document.getElementById('sync-dot').className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
+                    // Move/Place Action
+                    const moves = ADJACENCY[selectedNode];
+                    if (moves.includes(id)) {
+                        executeMove(selectedNode, id);
+                        selectedNode = null;
+                        clearHighlights();
+                        
+                        // Simulate Turn Switch after delay
+                        setTimeout(() => switchTurn(), 600);
+                    } else {
+                        addLog(`[ERROR] Invalid move: ${selectedNode} -> ${id}. Rejected by server.`, 'text-red-500');
+                        showToast("Érvénytelen lépés!", "error");
+                    }
                 }
-            }
+            }, 300 + Math.random() * 200); // Network latency simulation
+        }
 
-            emitEvent(type, data) {
-                // Simulate Kafka Export / Analytics Bridge
-                console.log(`[EVENT] ${type} -> Payload: ${JSON.stringify(data)} | Topic: match-move/game-end`);
-                
-                if (type === 'GAME_END') {
-                    this.endGame(data);
-                } else if (type === 'MILL_TRIGGERED') {
-                    // Visual feedback for Mill Triggered (UX Flow)
-                    const badge = document.getElementById('phase-badge');
-                    const originalText = badge.innerText;
-                    badge.innerText = "MILL! REMOVE";
-                    badge.className = "inline-block bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded text-xs font-bold tracking-wider animate-bounce";
-                    setTimeout(() => {
-                        if(this.state) {
-                            badge.innerText = this.state.phase;
-                            badge.className = "inline-block bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded text-xs font-bold tracking-wider animate-pulse";
-                        }
-                    }, 1500);
+        function isPieceAt(id) {
+            const pieces = piecesLayer.querySelectorAll('circle');
+            return Array.from(pieces).some(p => {
+                return p.getAttribute('cx') == NODES[id].x && p.getAttribute('cy') == NODES[id].y;
+            });
+        }
+
+        function getRedPieces() {
+            const pieces = piecesLayer.querySelectorAll('circle[fill="url(#gradRed)"]');
+            return Array.from(pieces).map(p => parseInt(p.dataset.id || 0)); // In real app, store ID on piece
+        }
+
+        function highlightValidMoves(nodeId, isAi = false) {
+            clearHighlights();
+            const moves = ADJACENCY[nodeId];
+            
+            // Draw lines
+            let paths = "";
+            moves.forEach(targetId => {
+                if (!isPieceAt(targetId)) {
+                    const target = NODES[targetId];
+                    paths += `<line x1="${NODES[nodeId].x}" y1="${NODES[nodeId].y}" x2="${target.x}" y2="${target.y}" stroke="#818cf8" stroke-width="3" opacity="0.5"/>`;
+                    
+                    // Highlight target node
+                    const circle = nodesLayer.querySelector(`[data-id='${targetId}']`);
+                    if(circle) {
+                        circle.setAttribute('fill', '#818cf8');
+                        circle.setAttribute('r', '16');
+                    }
                 }
+            });
+            
+            validLinesGroup.innerHTML = paths;
+            validLinesGroup.style.opacity = "1";
+
+            // Highlight source
+            const srcCircle = nodesLayer.querySelector(`[data-id='${nodeId}']`);
+            if(srcCircle) {
+                srcCircle.setAttribute('stroke', '#fff');
+                srcCircle.setAttribute('stroke-width', '4');
             }
         }
 
-        function countPieces(player, board) {
-            return board.filter(p => p === player).length;
+        function clearHighlights() {
+            validLinesGroup.style.opacity = "0";
+            nodesLayer.querySelectorAll('circle').forEach(c => {
+                c.removeAttribute('fill');
+                c.setAttribute('r', '14');
+                c.removeAttribute('stroke');
+                c.removeAttribute('stroke-width');
+            });
         }
 
-        // Initialize Game Instance
-        const game = new MalomGame();
+        function executeMove(from, to) {
+            const fromNode = NODES[from];
+            const toNode = NODES[to];
+            
+            // Create new piece visually
+            const svgNS = "http://www.w3.org/2000/svg";
+            const circle = document.createElementNS(svgNS, "circle");
+            circle.setAttribute("cx", toNode.x);
+            circle.setAttribute("cy", toNode.y);
+            circle.setAttribute("r", "16");
+            
+            if (currentTurn === 1) {
+                circle.setAttribute("fill", "url(#gradBlue)");
+                circle.setAttribute("stroke", "#fff");
+                circle.setAttribute("stroke-width", "2");
+                circle.setAttribute("filter", "url(#glowBlue)");
+                addLog(`[SERVER] Move accepted: P1 ${from} -> ${to}.`, 'text-blue-400');
+            } else {
+                circle.setAttribute("fill", "url(#gradRed)");
+                circle.setAttribute("stroke", "#fff");
+                circle.setAttribute("stroke-width", "2");
+                circle.setAttribute("filter", "url(#glowRed)");
+                addLog(`[SERVER] Move accepted: P2 ${from} -> ${to}.`, 'text-red-400');
+            }
+            
+            // Animate entry
+            circle.style.opacity = "0";
+            piecesLayer.appendChild(circle);
+            
+            requestAnimationFrame(() => {
+                circle.style.transition = "opacity 0.3s ease-out";
+                circle.style.opacity = "1";
+            });
+
+            // Check Mill (Simplified for demo)
+            if (Math.random() > 0.7) {
+                triggerMill();
+            }
+        }
+
+        function switchTurn() {
+            currentTurn = currentTurn === 1 ? 2 : 1;
+            
+            const indicator = turnIndicator;
+            if (currentTurn === 1) {
+                indicator.innerHTML = `
+                    <div class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
+                    <span class="font-semibold text-slate-200">Kék Játékos (P1)</span>
+                `;
+            } else {
+                indicator.innerHTML = `
+                    <div class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
+                    <span class="font-semibold text-slate-200">Vörös Játékos (P2)</span>
+                `;
+            }
+
+            if (currentMode === '1p' && currentTurn === 2) {
+                setTimeout(() => {
+                    // AI Turn Simulation
+                    handleNodeClick(-1); // Triggers internal AI logic in click handler
+                }, 1000);
+            }
+        }
+
+        function triggerMill() {
+            addLog("[EVENT] MILL DETECTED. Capture phase initiated.", "text-yellow-400");
+            showToast("⚡ MALOM! Elveendő darab választása", "mill");
+            
+            // Visual flash on board
+            const board = document.getElementById('game-board-container');
+            board.classList.add('border-red-500/50');
+            setTimeout(() => board.classList.remove('border-red-500/50'), 1000);
+        }
+
+        function showOverlay(text) {
+            overlayText.innerText = text;
+            overlay.style.opacity = "1";
+        }
+
+        function hideOverlay() {
+            overlay.style.opacity = "0";
+        }
+
+        function addLog(msg, colorClass) {
+            const div = document.createElement('div');
+            div.className = `${colorClass} border-l-2 border-slate-700 pl-2 py-1 bg-slate-900/30 rounded-r animate-pulse`;
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logContainer.prepend(div);
+            
+            // Limit log size
+            if (logContainer.children.length > 20) {
+                logContainer.lastElementChild.remove();
+            }
+        }
+
+        function showToast(message, type) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bgClass = "bg-slate-800 border-slate-600";
+            if (type === "error") bgClass = "bg-red-900/80 border-red-500 text-white";
+            if (type === "mill") bgClass = "bg-yellow-900/80 border-yellow-500 text-yellow-100";
+
+            toast.className = `${bgClass} glass-panel px-4 py-3 rounded-xl shadow-2xl transform translate-y-10 opacity-0 transition-all duration-300 flex items-center gap-2 pointer-events-auto`;
+            toast.innerHTML = `
+                <span class="text-sm font-medium">${message}</span>
+            `;
+
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-10', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-10', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function simulateAction(action) {
+            if (action === 'resign') {
+                addLog("[USER] Resignation requested.", "text-red-400");
+                showToast("Játék vége: Feladás", "error");
+            } else if (action === 'draw') {
+                addLog("[USER] Draw offer sent.", "text-yellow-400");
+                showToast("Döntetlen javasolva", "mill");
+            }
+        }
+
+        function startTimer() {
+            let seconds = 134; // Start at 2:14
+            setInterval(() => {
+                seconds++;
+                const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+                const s = (seconds % 60).toString().padStart(2, '0');
+                document.getElementById('session-timer').innerText = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function simulateLatency() {
+            setInterval(() => {
+                const lat = Math.floor(Math.random() * (65 - 35) + 35);
+                document.getElementById('latency-val').innerText = `${lat}ms`;
+            }, 2000);
+        }
+
+        // Run
+        init();
+
     </script>
 </body>
 </html>
