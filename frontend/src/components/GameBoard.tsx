@@ -1,73 +1,104 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useGameStore, POSITIONS, ADJACENCY } from '../store/GameStore';
 
-interface Props {
-  state: any; // Simplified for brevity, should be typed interface
-  onMove: (from: number, to: number) => void;
-}
+const GameBoard: React.FC = () => {
+  const state = useGameStore();
+  const handleNodeClick = useGameStore(s => s.handleNodeClick);
+  
+  useEffect(() => {}, [state.turn]);
 
-const GameBoard: React.FC<Props> = ({ state, onMove }) => {
-  // Explicit coordinates for the 24 points of Nine Men's Morris
-  const coords = [
-    { x: '5%', y: '5%' },   { x: '50%', y: '5%' },   { x: '95%', y: '5%' },
-    { x: '95%', y: '50%' }, { x: '95%', y: '95%' },  { x: '50%', y: '95%' },
-    { x: '5%', y: '95%' },  { x: '5%', y: '50%' },   // Outer Ring (0-7)
-    
-    { x: '25%', y: '25%' }, { x: '75%', y: '25%' },  { x: '75%', y: '75%' },
-    { x: '25%', y: '75%' }, // Middle Ring (8-15) - Simplified visual mapping for MVP
-    
-    { x: '37.5%', y: '37.5%' }, { x: '62.5%', y: '37.5%' }, 
-    { x: '62.5%', y: '62.5%' },   { x: '37.5%', y: '62.5%' }  // Inner Ring (16-23)
-  ];
-
-  const handleClick = (index: number) => {
-    if (state.selectedPiece !== null && state.board[index] === null) {
-      onMove(state.selectedPiece, index);
-      return;
+  const getLineProps = () => {
+    let html = '';
+    const drawn = new Set();
+    for (let i = 0; i < 24; i++) {
+      ADJACENCY[i].forEach(to => {
+        const key = [Math.min(i, to), Math.max(i, to)].join('-');
+        if (!drawn.has(key)) {
+          drawn.add(key);
+          const p1 = POSITIONS[i], p2 = POSITIONS[to];
+          let color = '#334155', w = 2;
+          const isOuter = [0,1,2,3,4,5,6,7].includes(i) || [0,1,2,3,4,5,6,7].includes(to);
+          const isInner = [16,17,18,19,20,21,22,23].includes(i) && [16,17,18,19,20,21,22,23].includes(to);
+          if (isInner) { color = '#475569'; w=2; } else if (!isOuter) { color='#64748b'; w=1.5; }
+          html += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="${color}" stroke-width="${w}"/>`;
+        }
+      });
     }
-    if (state.board[index] === state.currentPlayer) {
-        // Select piece logic would go here in full implementation
-        console.log(`Select ${index}`); 
-    }
+    return html;
+  };
+
+  const getValidMoves = () => {
+    if (state.selectedPos === null || state.removalMode || state.phase === 'PLACEMENT') return '';
+    const isFlying = state.phase === 'FLYING';
+    const targets = isFlying 
+      ? state.board.map((p, i) => p === null ? i : -1).filter(i => i !== -1)
+      : (ADJACENCY[state.selectedPos] || []).filter(to => !state.board[to]);
+    
+    return targets.map(idx => {
+      const p = POSITIONS[idx];
+      return `<circle cx="${p.x}" cy="${p.y}" r="8" class="fill-indigo-500/30 stroke-indigo-400 pointer-events-none"/>`;
+    }).join('');
+  };
+
+  const getStatusText = () => {
+    if (state.winner) return `${state.winner === 'white' ? 'Fehér' : 'Fekete'} Győzött!`;
+    if (state.removalMode) return '⚠️ Molino! Válassz ellenfél bábút.';
+    if (state.phase === 'PLACEMENT') return `📍 Elhelyezés (${state.hands.white} F / ${state.hands.black} K)`;
+    if (state.turn === 'white') return state.phase === 'FLYING' ? '🕊️ Repülés' : '⚔️ Mozgás';
+    return '🤖 AI gondolkodik...';
+  };
+
+  const getHandCount = (player: Player) => {
+      return state.hands[player];
   };
 
   return (
-    <div className="relative w-full max-w-[600px] aspect-square bg-slate-900/50 rounded-xl border border-white/10 p-4 shadow-2xl">
-      {/* SVG Lines */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-30" viewBox="0 0 100 100">
-        {/* Outer Square */}
-        <rect x="5" y="5" width="90" height="90" fill="none" stroke="#94a3b8" strokeWidth="0.5"/>
-        {/* Middle Square */}
-        <rect x="25" y="25" width="50" height="50" fill="none" stroke="#64748b" strokeWidth="0.5"/>
-        {/* Inner Square */}
-        <rect x="37.5" y="37.5" width="25" height="25" fill="none" stroke="#475569" strokeWidth="0.5"/>
+    <div className="relative w-[500px] h-[500px] rounded-2xl bg-slate-800 shadow-xl p-4 select-none">
+      <svg viewBox="0 0 400 400" className="w-full h-full overflow-visible">
+        <g id="connections">{getLineProps()}</g>
+        <g id="valid-moves">{getValidMoves()}</g>
         
-        {/* Cross Lines */}
-        <line x1="50" y1="5" x2="50" y2="95" stroke="#94a3b8" strokeWidth="0.5"/>
-        <line x1="5" y1="50" x2="95" y2="50" stroke="#94a3b8" strokeWidth="0.5"/>
+        {state.board.map((p, i) => (
+          <circle 
+            key={i} cx={POSITIONS[i].x} cy={POSITIONS[i].y} r="12" 
+            className={`transition-colors duration-200 ${state.selectedPos === i ? 'fill-indigo-500 stroke-white' : state.removalMode && p !== state.turn && p !== null ? 'fill-red-900/50 stroke-red-500 animate-pulse' : 'fill-slate-700 stroke-slate-600 hover:stroke-indigo-400'} cursor-pointer`}
+            onClick={() => handleNodeClick(i)}
+          />
+        ))}
+
+        {state.board.map((p, i) => p && (
+          <circle 
+            key={`piece-${i}`} cx={POSITIONS[i].x} cy={POSITIONS[i].y} r="12" 
+            fill={p === 'white' ? '#f8fafc' : '#0f172a'} 
+            stroke={p === 'white' ? '#cbd5e1' : '#475569'}
+            strokeWidth="2"
+            className={`pointer-events-none transition-transform duration-300 ${state.selectedPos === i ? 'scale-110' : ''}`}
+          />
+        ))}
       </svg>
 
-      {/* Points */}
-      {state.board.map((player: number | null, i: number) => (
-        <div
-          key={i}
-          onClick={() => handleClick(i)}
-          className={`absolute w-6 h-6 rounded-full border-2 flex items-center justify-center cursor-pointer transition-transform hover:scale-110 z-10 ${
-            player === 1 
-              ? 'bg-slate-900 border-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' 
-              : player === 2 
-                ? 'bg-white border-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.4)]'
-                : 'border-slate-600 bg-transparent hover:bg-white/10'
-          }`}
-          style={{ left: coords[i].x, top: coords[i].y }}
-        >
-            {player !== null && <div className={`w-3 h-3 rounded-full ${player === 1 ? 'bg-emerald-500' : 'bg-cyan-400'}`} />}
-        </div>
-      ))}
-
-      {/* Phase Overlay */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-slate-800/90 rounded-full text-xs font-mono text-emerald-400 border border-emerald-500/20">
-        {state.phase}
+      <div className="absolute top-4 left-0 w-full text-center pointer-events-none">
+         {getStatusText()}
       </div>
+
+      <div className="absolute bottom-4 left-0 w-full flex justify-between px-6 text-sm font-mono text-slate-400 bg-slate-900/50 rounded-lg py-2 backdrop-blur-sm">
+        <div>Fehér: {getHandCount('white')}</div>
+        <div>Fekete: {getHandCount('black')}</div>
+      </div>
+
+      {state.winner && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-2xl backdrop-blur-sm">
+              <div className="text-center animate-bounce">
+                  <h2 className="text-4xl font-bold text-white mb-4">{state.winner === 'white' ? 'Fehér' : 'Fekete'} Nyert!</h2>
+                  <button 
+                    onClick={() => useGameStore.getState().initGame()}
+                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold shadow-lg transition-transform hover:scale-105"
+                  >
+                      Újrakezdés
+                  </button>
+              </div>
+          </div>
+      )}
     </div>
   );
 };
