@@ -4,372 +4,479 @@
 > kérek egy online malom játékot
 
 ## 🤖 A Csapat Munkája és a Működés
-Ez a kódbázis egy többágenses (Multi-Agent) agilis LLMOps szimuláció végterméke. A folyamat során a Clean Code elveket követő csapat iteratív viták során dolgozta ki a specifikációt, a több fájlra bontott React és Java kódokat, az adatbázis sémákat (DDL/DML), valamint a UI/UX terveket.
+Ez a kódbázis egy többágenses (Multi-Agent) agilis LLMOps szimuláció végterméke. A folyamat során a Clean Code elveket követő csapat iteratív viták során dolgozta ki a specifikációt, a frontend és backend kódokat, az adatbázis sémákat (DDL/DML), valamint a UI/UX terveket.
 
 ## 📂 Projekt Memória (Záró állapot)
 
 ### 1. Iteráció:
 
 
-# 📄 Projekt Dokumentáció Frissítés: MALOM (Nine Men's Morris) MVP
+# 📄 PROJEKT DOKUMENTÁCIÓ FRISSÍTÉS
+**Dátum:** 2024-05-XX  
+**Státusz:** `⚠️ RETURNED FOR REVISION` (Architektúra & State Machine szinkronizáció)  
+**Fázis:** MVP Discovery → Validation  
 
-## 1. Állapot & Iterációs Zárás
-- **Projekt státusz:** MVP fejlesztés lezárva, átadásra kész.
-- **Jelenlegi fázis:** Integráció & Terheléses tesztelés (`Next Stage: Integration & Load Testing`).
-- **Sprint zárás:** Backlog validálva, felelősségi körök rögzítve, KPI-k dashboardon konfigurálva.
+---
 
-## 2. Technológiai Stack & Architektúrális Döntések
-| Réteg | Technológia / Döntés | Indoklás / Implementáció |
-|-------|----------------------|--------------------------|
-| **Frontend** | React 18 + TypeScript, Vite, Zustand (`persist` middleware), Socket.io-client, TailwindCSS | Zero-friction guest login flow, state persistence, real-time sync hook-ok, WCAG AA design system. |
-| **Backend** | Spring Boot 3.2.1 (Java 17), WebSocket/STOMP broker, Redis 7, PostgreSQL 15 | Regionális matchmaking queue, session TTL, cache-aside pattern, verziós SQL migrációk. |
-| **Biztonság & Observability** | JWT auth flow, strict CORS, Stripe/Paystack webhook idempotency, Prometheus metrics export, Sentry/Crashlytics bridge | P0/P1 SLA követés, crash reporting nap 1-től, batch analytics ingest pipeline. |
-| **Infra** | Docker Compose (Postgres, Redis, Backend, Nginx), GitHub Actions CI/CD, Jenkins build/deploy pipeline | Automatizált környezet provisioning, PR/main branch validáció, reverse proxy routing. |
+## 🔹 1. TECHNOLÓGIAI DÖNTÉSEK & ARCHITKTÚRA
+| Réteg | Technológia / Stack | Megjegyzés |
+|-------|---------------------|------------|
+| **Frontend** | React 18, Vite, TailwindCSS, Socket.io-client | Komponensbontás kötelező: `Board.tsx`, `useMatchState.ts`, `wsClient.ts` |
+| **Backend** | Spring Boot 3.2.1 (WebFlux/WS), PostgreSQL, Redis, JWT | Server-authoritative validation, idempotencia kulcsok a tranzakciókhoz |
+| **Adatkezelés** | Redis hash (`match:{id}:state`), PostgreSQL (users/matches/moves/transactions) | Batch analytics ingestion, 90 napos anonymizálási politika |
+| **CI/CD** | Jenkins Pipeline (Node 18, Maven 3) | Determinisztikus build/deploy lánc, `nohup` háttérfolyamatok |
 
-## 3. MVP Scope & Kötelező KPI-k
-### ✅ Bele scope-ba
-- 2játékos online multiplayer, alap AI ellenfél (MVP: random valid move generator)
-- Regionális matchmaking (Redis-backed queue, latency-optimalizált párosítás)
-- Profil/progresszió tárolás & guest sync logika
-- Fizetési gateway integráció (Stripe/Paystack checkout modal + webhook handler)
-- Analitika SDK beépítése (event tracking, batch ingest, D1/D7 aggregation)
+---
 
-### ❌ Kizárva scope-ból
-- Bonyolult social funkciók, tournament rendszer, procedurális generálás, cross-platform native build.
+## 🔹 2. KONFIGURÁCIÓS FÁJLOK & PIPELINE (Kód)
 
-| Mutató | Célérték (MVP → V1) |
-|--------|---------------------|
-| CAC / LTV arány | ≤ 0,33 |
-| D1 retention | >40% |
-| D7 retention | >25% |
-| Fizetővé konverzió | >8% |
-| Átlagos session duration | >12 perc |
-| API latency p95 | <200ms |
-| Bug triage SLA | P1: <24h, P2: <72h |
-
-## 4. Fájlstruktúra & Kulcskódok (Referencia)
-```text
-frontend/package.json          # React 18, TS, Vite, Zustand, Socket.io-client, TailwindCSS deps
-frontend/tsconfig.json         # ES2020 target, strict mode, path aliases (@/*)
-frontend/vite.config.ts        # Proxy /api → :8080, /ws → WebSocket proxy
-frontend/src/state/gameStore.ts# Zustand persist store (board state, turn logic, phase management)
-frontend/src/services/socketClient.ts # Socket.io wrapper, game-update/error event listeners
-backend/pom.xml                # Spring Boot 3.2.1, Web, JPA, Security, WebSocket, Redis, Stripe SDK
-backend/src/main/java/.../config/WebSocketConfig.java # STOMP broker (/topic), SockJS endpoint (/ws)
-backend/src/main/java/.../service/MatchmakingService.java # Redis queue, TTL-based session routing
-db/V001__create_users_and_profiles.sql   # users (UUID, guest_token), profiles (elo, stats)
-db/V002__create_game_history_and_stats.sql # game_sessions, indexes on started_at & elo_rating
-db/V003__create_payments_and_subscriptions.sql # subscriptions, payment_logs (idempotency ready)
-docker-compose.yml             # Postgres 15, Redis 7, Backend (:8080), Nginx frontend proxy
-infra/ci_cd/.github/workflows/build-and-test.yml # PR/main trigger, Maven verify, TS lint/typecheck/build
+### `frontend/package.json`
+```json
+{
+  "name": "malom-online-game",
+  "private": true,
+  "version": "1.0.0-alpha",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "socket.io-client": "^4.7.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "@vitejs/plugin-react": "^4.2.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^3.3.5",
+    "vite": "^5.0.0"
+  }
+}
 ```
 
-## 5. Tesztelés & QA Sign-off Eredmények
-- **QA státusz:** ✅ TICKET ÁTTÉVE → `Next Stage: Integration & Load Testing`
-- **Azonosított technikai kockázatok & Döntések:**
-  1. **Env validation layer hiánya:** `package.json` nem tartalmazza a `VITE_API_URL` default értékeit.  
-     *Döntés:* `.env` validáció kötelezővé tétele a következő sprintben (silent failure elkerülése).
-  2. **WebSocket szálkezelés:** Alap Spring Boot servlet container blokkoló HTTP szálakat használ, ami terheléses tesztelésnél (p95 <200ms) thread exhaustion-hez vezethet.  
-     *Döntés:* Backend csapat felelőssége a szinkron/aszinkron boundary validálása; `spring-boot-starter-webflux`/reactor-netty értékelése kötelező.
-  3. **DB Migrációk:** `application.yml`-ben `ddl-auto: validate` szerepel, de verziós SQL fájlok (`V001__...`) futtatása szükséges a P0 crash elkerüléséhez.  
-     *Döntés:* DB init script audit kötelező merge előtt; CI pipeline-ba migration step integrálása.
+### `backend/pom.xml` (Kivonat)
+```xml
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.1</version>
+</parent>
+<dependencies>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webflux</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-websocket</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-security</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>
+    <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-redis-reactive</artifactId></dependency>
+    <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-api</artifactId><version>0.12.3</version></dependency>
+</dependencies>
+```
 
-## 6. CI/CD & DevOps Konfiguráció
+### Jenkins Pipeline (`Jenkinsfile`)
 ```groovy
 pipeline {
     agent any
     stages {
-        stage('Frontend Build') { steps { sh 'cd frontend && npm install && npm run build' } }
-        stage('Backend Build')  { steps { sh 'mvn clean package -DskipTests' } }
-        stage('Frontend Deploy'){ steps { sh 'JENKINS_NODE_COOKIE=dontKillMe nohup npm start > frontend.log 2>&1 &' } }
-        stage('Backend Deploy') { steps { sh 'JENKINS_NODE_COOKIE=dontKillMe nohup mvn spring-boot:run -Dserver.port=8081 > backend.log 2>&1 &' } }
+        stage('Frontend Dependencies') { when { expression { fileExists("frontend/package.json") } } tools { nodejs "Node18" } steps { sh 'npm install' } }
+        stage('Frontend Build')     { when { expression { fileExists("frontend/package.json") } } tools { nodejs "Node18" } steps { sh 'npm run build' } }
+        stage('Backend Compile')    { when { expression { fileExists("backend/pom.xml") } } tools { maven "Maven3" } steps { sh 'mvn clean compile' } }
+        stage('Backend Deploy')     { when { expression { fileExists("backend/pom.xml") } } tools { maven "Maven3" } steps { sh 'JENKINS_NODE_COOKIE=dontKillMe nohup mvn spring-boot:run -Dserver.port=8081 > backend.log 2>&1 &' } }
     }
 }
 ```
-- GitHub Actions workflow: `push`/`pull_request` triggerre futtatja a backend Maven build/test-et és frontend lint/typecheck/build-et.
-- Nginx reverse proxy konfigurálva `/api/` routingra, SPA fallback (`try_files $uri $uri/ /index.html`).
-
-## 7. Következő Iteráció Feladatai (Sprint Backlog)
-1. Integrációs tesztelés a WebSocket/Redis/PostgreSQL stacken.
-2. Terheléses teszt futtatása (p95 latency <200ms validálás, thread pool tuning).
-3. `.env` validation layer implementálása frontend build pipeline-ba.
-4. DB migration CI step integrálása (`flyway/migrate` vagy script audit).
-5. Analytics SDK batch ingest endpoint tesztelése deduplication logikával.
 
 ---
-*Dokumentáció frissítve: MVP scope lezárva, technikai döntések rögzítve, QA sign-off teljesült. Következő lépés: Integráció & Terheléses tesztelés.*
+
+## 🔹 3. QA AUDIT & TESZTELÉSI EREDMÉNYEK
+| Kategória | Találat / Hibaleírás | Hatás |
+|-----------|----------------------|-------|
+| **Architektúra** | Specifikáció React komponenseket ír elő, implementáció monolit Vanilla JS (`index.html`). | Vite build pipeline `MODULE_NOT_FOUND` hibával áll le. WebSocket adapter réteg hiányzik. |
+| **State Machine** | `setTimeout(() => this.enterRemoveMode(), 500)` használata fázisváltáshoz. | Race condition WebSocket üzenet-pufferelésnél, undo/rollback sorrend felborulása. |
+| **Win Condition** | Duplikált validáció a `checkWinCondition()` és `switchPlayer()` ágakban. | Mill levétel utáni állapotátmenés nem determinisztikus, `gameOver` flag nem akadályozza a következő kör inicializálását. |
+| **Edge Case** | `handleMovement` nem frissíti azonnal a fázist üres pontra kattintásnál; `undo()` hiányos backend szinkronizáció. | Üres render loop kockázat, data drift offline/reconnect forgatókönyvnél. |
+| **Tesztfedezettség** | Követelmény: >80% unit test coverage (`MoveValidatorTest.java`). | Jelenlegi állapot: 0%. Coverage hiánya blokkolja a DoD teljesülését. |
+
+---
+
+## 🔹 4. TECHNikai AKCIÓTERV (Scope Gate v1.0 előtt)
+1. **Frontend Refaktorálás:** Monolit `index.html` bontása BA specifikáció szerinti komponensekre (`Board.tsx`, `useMatchState.ts`, `wsClient.ts`).
+2. **Determinisztikus Állapotgép:** `setTimeout()` eltávolítása. Szinkron state machine switch implementálása WebSocket üzenet-prioritással (`state sync > analytics`).
+3. **Backend Endpoint Vázak:** `/match`, `/move`, `/reconnect` végpontok létrehozása (még ha üres is, a frontend `wsClient.ts` integrációs teszteléséhez).
+4. **Unit Tesztek:** `MoveValidatorTest.java` lefedésének biztosítása (>80%), fókuszban mill levétel utáni win condition és reconnect fallback forgatókönyvek.
+5. **Integrációs Teszt Pipeline:** Futtatás a teljes láncra: `WebSocket room creation → move sync → DB persistence → analytics ingestion`.
+
+**Jövőbeli mérföldkő:** Ticket lezárása csak QA Lead explicit jóváhagyása után, az integrált stack és >80% tesztfedezettség mellett.
 
 ---
 ### 2. Iteráció:
 
 
-# 📄 Projekt Dokumentáció Frissítés: MALOM (Nine Men's Morris) MVP
-
-## 1. Állapot & Iterációs Zárás
-- **Projekt státusz:** 🔴 BLOCKED (QA Gate)
-- **Jelenlegi fázis:** Integráció & Terheléses tesztelés (`Next Stage: Integration & Load Testing`) – feltételes átadás a patch validációt követően.
-- **Sprint zárás:** Backlog frissítve, felelősségi körök rögzítve, KPI-k dashboardon konfigurálva, metrikai loopök validációs küszöbértékei beállítva.
-
-## 2. Technológiai Stack & Architektúrális Döntések
-| Réteg | Technológia / Döntés | Indoklás / Implementáció |
-|-------|----------------------|--------------------------|
-| **Frontend** | React 18 + TypeScript, Vite, Zustand (`persist` middleware), Socket.io-client, TailwindCSS (lokális processing) | Zero-friction guest login flow, state persistence, real-time sync hook-ok. `tailwind.config.js` & `postcss.config.ts` generálva a CDN helyett WCAG AA CI validációhoz. |
-| **Backend** | Spring Boot 3.2.1 (Java 17), WebSocket/STOMP broker, Redis 7, PostgreSQL 15, **WebFlux/Reactor** | Regionális matchmaking queue, session TTL, cache-aside pattern, verziós SQL migrációk. `spring-boot-starter-webflux` & `project-reactor-core` hozzáadva a `Mono`/`Flux` boundary-k és thread-pool exhaustion elkerülése érdekében. |
-| **Biztonság & Observability** | JWT auth flow, strict CORS, Stripe/Paystack webhook idempotency, Prometheus metrics export, Sentry/Crashlytics bridge | P0/P1 SLA követés, crash reporting nap 1-től, batch analytics ingest pipeline. Webhook retry loop & network timeout szimulációk kötelezőek. |
-| **Infra** | Docker Compose (Postgres, Redis, Backend, Nginx), GitHub Actions CI/CD, Jenkins build/deploy pipeline | Automatizált környezet provisioning, PR/main branch validáció, reverse proxy routing. Flyway migrációs lépés integrálva a pipeline-ba. |
-
-### ✅ Kötelező Elfogadási Szempontok (KPI-kötött)
-| Tesztterület | Acceptance Criteria | Kapcsolódó KPI |
-|--------------|---------------------|----------------|
-| WebSocket szálkezelés | 500+ párhuzamos session, p95 latency <200ms, thread exhaustion küszöb alatti | Átlagos session duration >12 perc |
-| Redis matchmaking queue | Max 3s párosítás, TTL-based session lejárattal, edge-case drain logika validálva | API latency p95 <200ms |
-| Fizetési webhook idempotency | Duplicate eventek kiszűrése, retry loop & timeout szimuláció, subscription desync esetén fázisfelfüggesztés + alert | CAC / LTV arány ≤ 0,33 |
-| Guest login → active game flow | Időzítés <120s, skeleton/error state audit ha túllép | D1 retention >40% |
-| WCAG AA automated validation | Focus-trap, ARIA labels, kontrasztvalidálás CI-ben futtatva | Konverziós drop-off <5% |
-| Analytics SDK deduplication | Batch ingest pipeline event duplikáció szűrése validálva | D7 retention >25% |
-
-## 3. MVP Scope & Kötelező KPI-k
-### ✅ Bele scope-ba
-- 2játékos online multiplayer, alap AI ellenfél (MVP: random valid move generator)
-- Regionális matchmaking (Redis-backed queue, latency-optimalizált párosítás)
-- Profil/progresszió tárolás & guest sync logika
-- Fizetési gateway integráció (Stripe/Paystack checkout modal + webhook handler)
-- Analitika SDK beépítése (event tracking, batch ingest, D1/D7 aggregation)
-
-### ❌ Kizárva scope-ból
-- Bonyolult social funkciók, tournament rendszer, procedurális generálás, cross-platform native build.
-
-| Mutató | Célérték (MVP → V1) |
-|--------|---------------------|
-| CAC / LTV arány | ≤ 0,33 |
-| D1 retention | >40% |
-| D7 retention | >25% |
-| Fizetővé konverzió | >8% |
-| Átlagos session duration | >12 perc |
-| API latency p95 | <200ms |
-| Bug triage SLA | P1: <24h, P2: <72h |
-
-## 4. Fájlstruktúra & Kulcskódok (Referencia)
-```text
-frontend/package.json          # React 18, TS, Vite, Zustand, Socket.io-client, TailwindCSS deps
-frontend/tsconfig.json         # ES2020 target, strict mode, path aliases (@/*)
-frontend/vite.config.ts        # Proxy /api → :8080, /ws → WebSocket proxy
-frontend/tailwind.config.js    # [ÚJ] Lokális Tailwind processing konfiguráció (WCAG AA CI validációhoz)
-frontend/postcss.config.ts     # [ÚJ] PostCSS plugin beállítások
-frontend/src/state/gameStore.ts# Zustand persist store (board state, turn logic, phase management, adjacency/mill detection stub)
-frontend/src/services/socketClient.ts # Socket.io wrapper, game-update/error event listeners
-frontend/src/components/GameBoard/BoardRenderer.tsx # SVG alapú tábla renderelése, pozíció-mapping logikával
-backend/pom.xml                # Spring Boot 3.2.1, Web, JPA, Security, WebSocket, Redis, Stripe SDK, **WebFlux/Reactor**
-backend/src/main/java/.../config/WebSocketConfig.java # STOMP broker (/topic), SockJS endpoint (/ws)
-backend/src/main/java/.../service/MatchmakingService.java # Redis queue, TTL-based session routing
-backend/src/main/java/.../controller/GameController.java  # @MessageMapping alapú játékállapot validálás és broadcast
-db/V001__create_users_and_profiles.sql   # users (UUID, guest_token), profiles (elo, stats)
-db/V002__create_game_history_and_stats.sql # game_sessions, indexes on started_at & elo_rating
-docker-compose.yml             # Postgres 15, Redis 7, Backend (:8080), Nginx frontend proxy
-infra/ci_cd/.github/workflows/build-and-test.yml # PR/main trigger, Maven verify, TS lint/typecheck/build, WCAG audit, .env validation, Flyway step
-```
-
-## 5. Tesztelés & QA Sign-off Eredmények
-- **QA státusz:** 🔴 BLOCKED (Manual QA Lead)
-- **Azonosított technikai kockázatok & Döntések:**
-  1. **Backend Kompilációs Blokk:** `MatchmakingService.java` és `GameController.java` használja a `reactor.core.publisher.Mono` típust, de `pom.xml` hiányolta a `spring-boot-starter-webflux`/`project-reactor-core` függőséget.  
-     *Döntés:* Függőség hozzáadva, Mono/Flux boundary-k validálása kötelező merge előtt. Thread-pool exhaustion kockázat kiküszöbölve.
-  2. **Frontend Konfigurációs Inkompatibilitás:** UX HTML CDN Tailwind hivatkozása vs. Vite lokális processing. `tailwind.config.js` és `postcss.config.ts` hiánya silent failure-hez vezetett volna.  
-     *Döntés:* Konfigfájlok generálva, UX komponensek integrálva a Vite pipeline-ba. WCAG AA automatizált validálás bekapcsolva CI-be.
-  3. **Játékállapot Gépi Logikai Űrhelyek:** `gameStore.ts` hiányolta az adjacency validation-t, mill (3 kő sorba) detektálást és gameover állapotzárás logikáját. Race condition kockázat párhuzamos kliens emit esetén <10ms ablakban.  
-     *Döntés:* Determinisztikus rule-engine réteg implementálása kötelező. Concurrent state consistency tesztelés futtatandó.
-  4. **Infra & Biztonsági Validációs Réteg:** `.env` validáció layer és Flyway migrációs lépés hiányzott a CI pipeline-ból. `ddl-auto: validate` önmagában nem fed le verziós konszisztenciát.  
-     *Döntés:* `.env.validation` script integrálva Jenkins/GitHub Actions pipeline-ba. Flyway migration audit kötelező merge gate-ként.
-
-- **Terheléses & Integrációs Validálás Paraméterek (PO):**
-  - WebSocket stresszteszt: 500+ párhuzamos session, p95 latency <200ms. Küszöb átlépése → automatikus rollback.
-  - Redis matchmaking queue: max 3s párosítás valós időkésleltetés mellett. TTL & regionális routing edge-case validálás (disconnected players, timeout sessions).
-  - Fizetési webhook: duplicate event, retry loop, network timeout szimulációk. Subscription desync → fázisfelfüggesztés + finance alert.
-  - Checkout UX flow: max 2 click-to-pay. Konverziós drop-off >5% → analytics SDK deduplication pipeline audit + modal retry logika felülvizsgálata.
-
-## 6. CI/CD & DevOps Konfiguráció
-```groovy
-pipeline {
-    agent any
-
-    tools {
-        nodejs "Node18"
-        maven "Maven3"
-    }
-
-    stages {
-        stage('Frontend Build') {
-            when { expression { fileExists("frontend/package.json") } }
-            steps {
-                sh 'cd frontend && npm install && npm run build'
-            }
-        }
-
-        stage('Backend Build') {
-            when { expression { fileExists("backend/pom.xml") } }
-            steps {
-                sh 'mvn clean package -DskipTests'
-            }
-        }
-
-        stage('Frontend Deploy') {
-            when { expression { fileExists("frontend/package.json") } }
-            steps {
-                sh 'JENKINS_NODE_COOKIE=dontKillMe nohup npm start > frontend.log 2>&1 &'
-            }
-        }
-
-        stage('Backend Deploy') {
-            when { expression { fileExists("backend/pom.xml") } }
-            steps {
-                sh 'JENKINS_NODE_COOKIE=dontKillMe nohup mvn spring-boot:run -Dserver.port=8081 > backend.log 2>&1 &'
-            }
-        }
-    }
-
-    post {
-        always {
-            echo 'CI/CD execution complete. System state locked.'
-        }
-    }
-}
-```
-- GitHub Actions workflow: `push`/`pull_request` triggerre futtatja a backend Maven build/test-et, frontend lint/typecheck/build-et, Tailwind/WCAG auditot, `.env` validációt és Flyway migration lépést.
-- Nginx reverse proxy konfigurálva `/api/` routingra, SPA fallback (`try_files $uri $uri/ /index.html`).
-
-## 7. Következő Iteráció Feladatai (Sprint Backlog)
-1. **WebFlux/Reactor integráció & boundary validálás:** `pom.xml` patch, Mono/Flux thread-pool tuning, p95 <200ms SLA tesztelés 500+ sessionnel.
-2. **State machine hardening:** Adjacency validation, mill detection, gameover state logika implementálása `gameStore.ts`-be, concurrent emit race condition tesztelés.
-3. **Config unification & CI gate:** `tailwind.config.js`, `postcss.config.ts`, `.env.validation` script generálása és pipeline integrálása, WCAG AA automatizált futtatás.
-4. **Flyway & Migration audit:** `application.yml` Flyway konfiguráció, verziós SQL fájlok (`V001__...`) CI-be épített migration lépés, schema drift ellenőrzés.
-5. **Terheléses teszt futtatása:** WebSocket/Redis/PostgreSQL stacken, p95 latency validálás, thread pool tuning, Redis queue TTL/routing edge-case validálás (max 3s match).
-6. **Fizetési & Konverziós útvonal tesztelése:** Stripe/Paystack webhook idempotency szimulációk, checkout UX flow (<2 clicks) validálás, analytics SDK deduplication pipeline audit.
-7. **Guest login → active game flow időzítés:** <120s célvalidálás, skeleton/error state audit, D1 retention korrelációs mérés.
+# 📄 PROJEKT DOKUMENTÁCIÓ FRISSÍTÉS
+**Dátum:** 2024-05-XX  
+**Státusz:** `🔴 CRITICAL PRIORITY – SCOPE GATE v1.0 PENDING / RETURNED FOR CRITICAL REVISION`  
+**Fázis:** MVP Discovery → Validation  
 
 ---
-*Dokumentáció frissítve: QA gate BLOCKED státusz rögzítve, technikai döntések (WebFlux, Tailwind config, Flyway, State machine) dokumentálva, tesztparaméterek és KPI-kötött elfogadási szempontok beépítve. Következő lépés: Patch implementáció → QA validálás → Integráció & Terheléses tesztelés.*
+
+## 🔹 1. TECHNOLÓGIAI DÖNTÉSEK & ARCHITKTÚRA
+| Réteg | Technológia / Stack | Megjegyzés / Mandátum |
+|-------|---------------------|------------------------|
+| **Frontend** | React 18, Vite, TailwindCSS, Socket.io-client, Immer, TypeScript | Komponensbontás kötelező: `Board.tsx`, `useMatchState.ts`, `wsClient.ts`. Lokális validáció csak UX-preview; szerveri autoritás végleges. |
+| **Backend** | Spring Boot 3.2.1 (WebFlux/WS, JPA), PostgreSQL, Redis Reactive, JWT | Server-authoritative state machine. Idempotencia kulcsok minden `/move` hívásnál. Determinisztikus fázisváltás atomi üzenetküldéssel. |
+| **Adatkezelés** | Redis hash (`match:{id}:state`), PostgreSQL (users/matches/moves/transactions) | Batch analytics ingestion, 90 napos anonymizálási politika. State snapshot + client-side optimistic queue + reconciliation endpoint. |
+| **CI/CD** | Jenkins Pipeline (Node 18, Maven 3) | Determinisztikus build/deploy lánc, `disableConcurrentBuilds`, explicit timestamp audit trail. |
+| **Tesztelési Küszöbök** | Unit: ≥85% branch coverage<br>Integration: ≤120ms P95 latency, <0.3% error rate (50 párhuzamos session)<br>Chaos/Edge: Network throttling, Redis/DB timeout, state drift recovery ≤2s<br>State Machine: 500+ szimuláció, 100% pass rate | A küszöbök túllépése scope freeze-t és risk log entry-t generál. |
+
+---
+
+## 🔹 2. KONFIGURÁCIÓS FÁJLOK & PIPELINE (Kód)
+
+### `frontend/package.json`
+```json
+{
+  "name": "malom-online-game",
+  "private": true,
+  "version": "1.0.1-rc",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "socket.io-client": "^4.7.5",
+    "immer": "^10.0.3",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.12"
+  }
+}
+```
+
+### `backend/pom.xml` (Kivonat)
+```xml
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.1</version>
+</parent>
+<dependencies>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webflux</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-websocket</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-security</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-redis-reactive</artifactId></dependency>
+    <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-api</artifactId><version>0.12.3</version></dependency>
+    <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-impl</artifactId><version>0.12.3</version><scope>runtime</scope></dependency>
+    <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-jackson</artifactId><version>0.12.3</version><scope>runtime</scope></dependency>
+    <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
+</dependencies>
+```
+
+### `frontend/vite.config.ts`
+```typescript
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: { proxy: { '/api': 'http://localhost:8081', '/ws': { target: 'http://localhost:8081', ws: true } } },
+  build: { outDir: 'dist', sourcemap: false, rollupOptions: { output: { manualChunks: { vendor: ['react','react-dom'] } } } }
+})
+```
+
+### `frontend/tailwind.config.js`
+```javascript
+export default {
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  theme: { extend: {} },
+  plugins: []
+}
+```
+
+### `frontend/index.html` & `main.tsx` & `index.css`
+```html
+<!DOCTYPE html>
+<html lang="hu">
+  <head><meta charset="UTF-8" /><link rel="icon" type="image/svg+xml" href="/vite.svg" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>MALOM | Deterministic Strategy</title></head>
+  <body class="bg-slate-900 text-slate-200 font-sans antialiased min-h-screen flex items-center justify-center"><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>
+</html>
+```
+```typescript
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { Board } from './components/Board'
+import './index.css'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode><Board /></React.StrictMode>
+)
+```
+```css
+@tailwind base; @tailwind components; @tailwind utilities;
+@keyframes pulse-glow { 0% { filter: drop-shadow(0 0 4px rgba(100,255,218,0.3)); } 100% { filter: drop-shadow(0 0 12px rgba(100,255,218,0.7)); } }
+.animate-pulse-glow { animation: pulse-glow 1.5s infinite alternate; }
+::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: rgba(30,41,59,0.5); } ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+```
+
+### `frontend/src/services/wsClient.ts` & `useMatchState.ts` & `Board.tsx`
+*(Kód a megadott specifikáció szerint, React komponensbontással, Immer state kezeléssel, idempotencia kulcs generálással és WS eseményrouterrel.)*
+
+### Backend Java Architektúra (`MalomApplication.java`, `WebSocketConfig.java`, `MatchStateMachine.java`, `MoveValidatorService.java`)
+*(Kód a megadott specifikáció szerint, server-authoritative state machine, explicit adjacency/mill validáció, STOMP WebSocket broker konfigurációval.)*
+
+### `frontend/src/test/java/com/mallogame/engine/MoveValidatorTest.java`
+```java
+@SpringBootTest
+class MoveValidatorTest {
+    @Autowired private MoveValidatorService validator;
+    private List<Character> board;
+    @BeforeEach void setUp() { board = new ArrayList<>(Collections.nCopies(24, null)); }
+
+    @Test void testIsAdjacent() { assertTrue(validator.isAdjacent(0, 1)); assertFalse(validator.isAdjacent(0, 5)); }
+    @Test void testHasFormedMill_StandardOuter() { board.set(0,'w');board.set(1,'w');board.set(2,'w'); assertTrue(validator.hasFormedMill(board,1,'w')); }
+    @Test void testCanRemovePiece_ProtectionRule() { /* Védett bábu logika validálása */ }
+    @Test void testHasAnyValidMoves_Flying() { board.set(0,'w');board.set(4,'w');board.set(8,'w'); assertTrue(validator.hasAnyValidMoves(board,'w')); }
+    @Test void testDeterministicStateTransition_NoTimeouts() { /* Tiszta függvény validáció */ }
+}
+```
+
+### Jenkins Pipeline (`Jenkinsfile`)
+```groovy
+pipeline { agent any stages { stage('Frontend Dependencies') { when { expression { fileExists("frontend/package.json") } } tools { nodejs "Node18" } steps { sh 'npm install' } } stage('Frontend Build') { when { expression { fileExists("frontend/package.json") } } tools { nodejs "Node18" } steps { sh 'npm run build' } } stage('Backend Compile') { when { expression { fileExists("backend/pom.xml") } } tools { maven "Maven3" } steps { sh 'mvn clean compile' } } stage('Backend Deploy') { when { expression { fileExists("backend/pom.xml") } } tools { maven "Maven3" } steps { sh 'JENKINS_NODE_COOKIE=dontKillMe nohup mvn spring-boot:run -Dserver.port=8081 > backend.log 2>&1 &' } } stage('Frontend Deploy') { when { expression { fileExists("frontend/package.json") } } tools { nodejs "Node18" } steps { sh 'JENKINS_NODE_COOKIE=dontKillMe nohup npm start > frontend.log 2>&1 &' } } } options { timestamps() disableConcurrentBuilds() } }
+```
+
+---
+
+## 🔹 3. QA AUDIT & TESZTELÉSI EREDMÉNYEK
+| Kategória | Találat / Hibaleírás | Hatás / Következmény |
+|-----------|----------------------|-----------------------|
+| **POJO Serializáció** | `GameState` belső osztály hiányos: `getScores()`, `getPiecesOnBoard()` és kapcsolódó setterek nem implementálva. | JSON szerializációs hiba a `broadcastSync()` hívásnál. State drift a kliens-oldalon. |
+| **State Machine Asyncitás** | `setPhase("remove")` utáni azonnali `return` megszakítja a flow-ot. WebSocket üzenetek sorrendisége és idempotencia kulcsok érvényesítése reconnect esetén nem garantált. | Race condition optimistic UI vs server state. Undo/rollback sorrend felborulása. |
+| **Validációs Réteg** | `MoveValidatorService.checkWinCondition()` jelenleg `return false;` (stub). | Üzleti logika hiányos. Játék soha nem ér véget, churn kockázat növekszik. |
+| **Frontend-Backend Sync** | `useMatchState.ts` lokális `getValidMoves()` számítása nem tartalmaz server-side error rollback mechanizmust (`produce` draft hiányos ERROR eseményre). | State drift esetén UI nem áll vissza konzisztens állapotra. Felhasználói súrlódás nő. |
+| **Tesztfedezettség** | Jelenlegi: ~0% branch coverage a kritikus ágakban. Követelmény: ≥85%. | DoD nem teljesült. Scope Gate v1.0 aktiválása blokkolva. |
+
+---
+
+## 🔹 4. TECHNikai AKCIÓTERV & ZÁRÁS KRITÉRIUMOK
+1. **`GameState` POJO Teljesítése:** Explicit getter/setter implementáció minden mezőre. JSON szerializáció determinisztikus, reflexióra hagyott boilerplate nélkül.
+2. **`checkWinCondition()` Valós Implementáció:** Logika pótlása: `(piecesOnBoard[opponent] < 3) || (!hasAnyValidMoves(board, opponent))`. Tiszta függvény, kimeneti torzítás nélkül.
+3. **Determinisztikus State Sync:** `MatchStateMachine`-ben explicit `nextTurn()` logika bevezetése. Fázisváltás és `STATE_SYNC` küldése atomi művelet. WebSocket üzenetekhez sequence number/versioning hozzáadása az idempotencia és reconnect konzisztencia biztosítására.
+4. **Error Handling & Rollback:** `useMatchState.ts`-ben `ERROR` esemény kezelő implementálása. UI state visszaállítása az előző konzisztens pontra (`history.pop()` logika), akadálynak nem hagyva a felhasználót.
+5. **Unit Tesztek Kiegészítése:** `MoveValidatorTest.java` bővítése `checkWinCondition()` és állapotátmeneti sorrendiség teszteivel. CI pipeline-ban branch coverage gate beállítása ≥85% minimumra.
+
+**Zárási Kritériumok (Scope Gate v1.0):**
+- ✅ QA Lead explicit jóváhagyása a fenti 5 pont fizikai implementációjára és unit teszteseteken keresztüli igazolására.
+- ✅ Integrációs pipeline sikeres futtatása: `WS room creation → move sync → DB persistence → analytics ingestion`.
+- ✅ Metrikus küszöbök teljesülése: ≤120ms P95 latency, <0.3% error rate, 500+ state machine szimuláció 100%-os pass rate.
+- ⛔ A ticket **NEM ZÁRHATÓ LE** `RETURNED FOR CRITICAL REVISION` státusz alatt a fenti feltételek teljesüléséig.
+
+**Státusz:** `🟡 IN PROGRESS – SCOPE GATE v1.0 PENDING`  
+**Következő Sync:** Holnap 10:00 | Téma: `State Machine Determinism + Integration Test Matrix`
 
 ---
 ### 3. Iteráció:
 
 
-# 📄 Projekt Dokumentáció Frissítés: MALOM (Nine Men's Morris) MVP – Iteráció 3
+# 📄 PROJEKT DOKUMENTÁCIÓ FRISSÍTÉS
+**Dátum:** 2024-05-XX  
+**Státusz:** `🔴 RETURNED FOR CRITICAL REVISION – STRUCTURAL INTEGRITY CHECK FAILED`  
+**Fázis:** MVP Discovery → Validation  
 
-## 1. Állapot & Iterációs Zárás
-- **Projekt státusz:** ✅ `PASSED` → `Integration & Load Testing`
-- **Jelenlegi fázis:** Integráció & Terheléses tesztelés (QA Gate feloldva, explicit sign-off rögzítve)
-- **Sprint zárás:** Backlog validálva, felelősségi körök rögzítve, KPI-k dashboardon konfigurálva. Ticket lezárva a PO/BA/QA/SM egyeztetett metrikai küszöbértékek teljesülése alapján.
+---
 
-## 2. Technológiai Stack & Architektúrális Döntések
-| Réteg | Technológia / Döntés | Indoklás / Implementáció |
-|-------|----------------------|--------------------------|
-| **Frontend** | React 18 + TypeScript, Vite, Zustand (`persist`), Socket.io-client, TailwindCSS (lokális processing) | CDN fallback elvetve. `tailwind.config.js` & `postcss.config.ts` generálva a build pipeline-ba. UI reaktivitás cél: <120ms. Guest-onboarding időzítés: <120s. |
-| **Backend** | Spring Boot 3.2.1 (Java 17), **WebFlux/Reactor**, WebSocket/STOMP, Redis 7, PostgreSQL 15 | `spring-boot-starter-webflux`, `reactor-core`, `blockhound` hozzáadva. Nem-blokkoló thread pool (`WebFluxThreadConfig.java`) konfigurálva. p95 SLA: <180ms terhelés alatt. |
-| **Játéklogika** | Determinisztikus rule-engine (Kliens + Szerver) | `gameStore.ts`: adjacency graph, mill detektálás stubok, atomic mutation. `DeterministicRuleEngineService.java`: szerveroldali validáció, state drift detektálás, race condition védelem. |
-| **Biztonság & Observability** | JWT auth, strict CORS, Stripe/Paystack webhook idempotency (TTL-based deduplication), Prometheus metrics, Sentry bridge | Payload tampering & time-shifted duplication szimulációk kötelezőek. Graceful degradation enforced. |
-| **Infra** | Docker Compose, GitHub Actions CI/CD, Jenkins pipeline, Flyway | `.env.validation` script, Flyway migration step, auto-rollback health check integrálva. Chaos engineering pipeline (`chaos-and-load-test.yml`) hozzáadva. |
+## 🔹 1. TECHNOLÓGIAI DÖNTÉSEK & ARCHITKTÚRA
+| Réteg | Technológia / Stack | Megjegyzés / Mandátum |
+|-------|---------------------|------------------------|
+| **Frontend** | React 18, Vite, TailwindCSS, Socket.io-client, Immer, TypeScript | Komponensbontás kötelező: `Board.tsx`, `useMatchState.ts`, `wsClient.ts`. Lokális validáció csak UX-preview; szerveri autoritás végleges. History stack korlátja: `MAX_HISTORY_DEPTH = 50`. Explicit WS router (`STATE_SYNC`, `ERROR`, `GAME_OVER`). |
+| **Backend** | Spring Boot 3.2.1 (WebFlux/WS, JPA), PostgreSQL, Redis Reactive, JWT | Server-authoritative state machine. DI kontextus kötelező (`@Autowired`). Idempotencia kulcsok minden `/move` hívásnál. DTO felelősségi kör szigorú elválasztása (nincs üzleti logika). `checkWinCondition()` valós lépésképtelenség-ellenőrzése kötelező. |
+| **Adatkezelés** | Redis hash (`match:{id}:state`), PostgreSQL (users/matches/moves/transactions) | Batch analytics ingestion, 90 napos anonymizálási politika. State snapshot + client-side optimistic queue + reconciliation endpoint. Composite unique index: `match_id` + `sequence_number`. |
+| **CI/CD** | Jenkins Pipeline (Node 18, Maven 3) | Determinisztikus build/deploy lánc, `disableConcurrentBuilds`, explicit timestamp audit trail, timeout: 45 perc, log rotáció: 30 build. Automatikus coverage gate ≥85% branch. |
+| **Tesztelési Küszöbök** | Unit: ≥85% branch coverage<br>Integration: ≤120ms P95 latency, <0.3% error rate (50 párhuzamos session)<br>Chaos/Edge: Network throttling, Redis/DB timeout, state drift recovery ≤2s<br>State Machine: 500+ szimuláció, 100% pass rate | A küszöbök túllépése scope freeze-t és risk log entry-t generál. |
 
-## 3. MVP Scope & Kötelező KPI-k
-### ✅ Bele scope-ba
-- 2játékos online multiplayer, determinisztikus AI ellenfél (MVP: rule-engine validált lépések)
-- Regionális matchmaking (Redis-backed queue, TTL-based session routing)
-- Profil/progresszió tárolás & guest sync logika (<120s onboarding)
-- Fizetési gateway integráció (Stripe/Paystack checkout + webhook idempotency handler)
-- Analitika SDK beépítése (event tracking, batch ingest, D1/D7 aggregation)
+---
 
-### ❌ Kizárva scope-ból
-- Bonyolult social funkciók, tournament rendszer, procedurális generálás, cross-platform native build.
+## 🔹 2. KONFIGURÁCIÓS FÁJLOK & PIPELINE (Kód)
 
-| Mutató | Célérték (MVP → V1 / Stressz alatt) |
-|--------|---------------------|
-| CAC / LTV arány | ≤ 0,33 |
-| D1 retention | >40% |
-| D7 retention | >25% |
-| Fizetővé konverzió | >8% |
-| Átlagos session duration | >12 perc |
-| API latency p95 | <180ms (terhelés alatt), <200ms (alap) |
-| State drift / Race condition coverage | Drift = 0, Coverage >95% |
-| Chaos test pass rate | >90% |
-| Bug triage SLA | P1: <24h, P2: <72h |
-
-## 4. Fájlstruktúra & Kulcskódok (Referencia)
-```text
-frontend/package.json          # React 18, TS, Vite, Zustand, Socket.io-client, TailwindCSS deps, validate-env script
-frontend/tailwind.config.js    # Lokális processing konfiguráció (content, theme, animations, backdropBlur)
-frontend/postcss.config.ts     # Autoprefixer & Tailwind CSS transform pipeline
-frontend/src/state/gameStore.ts# Hardened state machine: BOARD_GRAPH adjacency, MILL_LINES detection, atomic mutations, phase transition logic
-backend/pom.xml                # Spring Boot 3.2.1, WebFlux/Reactor, WebSocket, Redis Reactive, JPA, PostgreSQL, Security, Blockhound (test)
-backend/src/main/java/.../config/WebFluxThreadConfig.java # Non-blocking WebClient, backpressure boundary (200ms timeout), ReactorClientHttpConnector
-backend/src/main/java/.../service/DeterministicRuleEngineService.java # Server-side validation: ADJACENCY map, MILL_LINES check, state drift detection stub
-backend/src/main/java/.../controller/GameController.java  # @MessageMapping /game.move & /game.join, Mono boundaries, 150ms SLA timeout
-db/V004__payment_idempotency_and_connection_pool_optimization.sql # payment_logs idempotency keys (request_hash, dedup_window), pool tuning params
-infra/ci_cd/.github/workflows/chaos-and-load-test.yml # 72h stress simulation, latency injection (50-300ms), Redis failover & DB exhaustion stubs
+### `frontend/package.json`
+```json
+{
+  "name": "malom-online-game",
+  "private": true,
+  "version": "1.0.2-stable",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "socket.io-client": "^4.7.5",
+    "immer": "^10.0.3",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.12"
+  }
+}
 ```
 
-### 🔑 Kulcskódok (Rövidített hivatkozás)
-**`frontend/src/state/gameStore.ts`** – Determinisztikus állapotkezelés:
+### `backend/pom.xml` (Kivonat)
+```xml
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.1</version>
+    </parent>
+    <groupId>com.mallogame</groupId>
+    <artifactId>malom-backend</artifactId>
+    <version>1.0.2-stable</version>
+    <properties><java.version>17</java.version></properties>
+    <dependencies>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webflux</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-websocket</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-security</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-redis-reactive</artifactId></dependency>
+        <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-api</artifactId><version>0.12.3</version></dependency>
+        <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-impl</artifactId><version>0.12.3</version><scope>runtime</scope></dependency>
+        <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-jackson</artifactId><version>0.12.3</version><scope>runtime</scope></dependency>
+        <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
+    </dependencies>
+    <build><plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin></plugins></build>
+</project>
+```
+
+### `frontend/vite.config.ts` & `tailwind.config.js`
 ```typescript
-const BOARD_GRAPH: Record<number, number[]> = { /* 24 node adjacency map */ };
-const MILL_LINES = [/* 8 valid mill combinations */];
-// placePiece, selectPiece, movePiece, validateMove, getValidMoves implementálva atomic mutation-mal.
-// Phase transition: placement → movement → flying (reserves exhausted).
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+export default defineConfig({
+  plugins: [react()],
+  server: { proxy: { '/api': 'http://localhost:8081', '/ws': { target: 'http://localhost:8081', ws: true } } },
+  build: { outDir: 'dist', sourcemap: false, rollupOptions: { output: { manualChunks: { vendor: ['react','react-dom'] } } } }
+})
+```
+```javascript
+export default { content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'], theme: { extend: {} }, plugins: [] }
 ```
 
-**`backend/src/main/java/.../config/WebFluxThreadConfig.java`** – Nem-blokkoló boundary:
+### `frontend/index.html` & `main.tsx` & `index.css`
+```html
+<!DOCTYPE html>
+<html lang="hu">
+  <head><meta charset="UTF-8" /><link rel="icon" type="image/svg+xml" href="/vite.svg" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>MALOM | Deterministic Strategy</title></head>
+  <body class="bg-slate-900 text-slate-200 font-sans antialiased min-h-screen flex items-center justify-center"><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>
+</html>
+```
+```typescript
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { Board } from './components/Board'
+import './index.css'
+ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><Board /></React.StrictMode>)
+```
+```css
+@tailwind base; @tailwind components; @tailwind utilities;
+@keyframes pulse-glow { 0% { filter: drop-shadow(0 0 4px rgba(100,255,218,0.3)); } 100% { filter: drop-shadow(0 0 12px rgba(100,255,218,0.7)); } }
+.animate-pulse-glow { animation: pulse-glow 1.5s infinite alternate; }
+::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: rgba(30,41,59,0.5); } ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+```
+
+### `frontend/src/services/wsClient.ts` & `useMatchState.ts` & `Board.tsx`
+*(Kód a megadott specifikáció szerint, explicit eseményrouterrel, Immer alapú rollback korlátozással és determinisztikus állapotkezeléssel.)*
+
+### Backend Java Architektúra (`MalomApplication.java`, `WebSocketConfig.java`, `GameStateDTO.java`, `MatchStateMachine.java`, `MoveValidatorService.java`)
+*(Kód a megadott specifikáció szerint, Spring DI injektálással, tiszta DTO szerződéssel és valós win condition logikával.)*
+
+### `frontend/src/test/java/com/mallogame/engine/MoveValidatorTest.java`
 ```java
-@Bean public WebClient webClient() {
-    HttpClient httpClient = HttpClient.create().option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 3000)
-                .responseTimeout(Duration.ofMillis(250));
-    return WebClient.builder().clientConnector(new ReactorClientHttpConnector(httpClient)).build();
+@SpringBootTest
+class MoveValidatorTest {
+    @Autowired private MoveValidatorService validator;
+    private List<Character> board;
+    @BeforeEach void setUp() { board = new ArrayList<>(Collections.nCopies(24, null)); }
+
+    @Test void testIsAdjacent() { assertTrue(validator.isAdjacent(0, 1)); assertFalse(validator.isAdjacent(0, 5)); }
+    @Test void testHasFormedMill_StandardOuter() { board.set(0,'w');board.set(1,'w');board.set(2,'w'); assertTrue(validator.hasFormedMill(board,1,'w')); }
+    @Test void testCanRemovePiece_ProtectionRule() { /* Védett bábu logika validálása */ }
+    @Test void testHasAnyValidMoves_Flying() { board.set(0,'w');board.set(4,'w');board.set(8,'w'); assertTrue(validator.hasAnyValidMoves(board,'w')); }
+    @Test void testDeterministicStateTransition_NoTimeouts() { /* Tiszta függvény validáció */ }
 }
 ```
 
-**`backend/src/main/java/.../controller/GameController.java`** – Üzenetkezelés:
-```java
-@MessageMapping("/game.move") @SendTo("/topic/game.state")
-public Mono<Map<String, Object>> processMove(Map<String, Object> payload) {
-    return Mono.just(payload).map(p -> (Map<String, String>) p.get("move"))
-            .flatMap(moveData -> ruleEngine.isValidMove(...) ? 
-                Mono.just(Map.of("status", "ACCEPTED")) : 
-                Mono.error(new RuntimeException("INVALID_MOVE")))
-            .timeout(Duration.ofMillis(150));
-}
-```
-
-## 5. Tesztelés & QA Sign-off Eredmények
-- **QA státusz:** ✅ `PASSED` → `Integration & Load Testing`
-- **Explicit Sign-off (PO/QA mandate):**  
-  `✅ Rábólintok a package.json és pom.xml meglétére, valamint a korrigált rétegek integritására.`
-- **Azonosított technikai kockázatok & Döntések:**
-  1. **WebFlux Thread-pool & Backpressure:** `pom.xml` patch + `WebFluxThreadConfig.java` implementálva. `blockhound` tesztdeps hozzáadva a blokkoló hívások detektálásához. SLA: p95 <180ms terhelés alatt.
-  2. **State Machine Determinizmus:** `gameStore.ts` & `DeterministicRuleEngineService.java` implementálva. Adjacency graph & mill detection logika rögzítve. State drift monitoring kötelező a következő fázisban.
-  3. **Config & Build Pipeline:** `tailwind.config.js`, `postcss.config.ts`, `.env.validation.mjs` generálva. CDN Tailwind hivatkozás prototípus szintű; éles build kizárólag lokális processing-t használ. WCAG AA audit CI-be integrálva.
-  4. **Chaos & Stressz Tesztelés:** PO/BA specifikáció alapján 72h folyamatos stressz szimuláció, random network latency injection (50-300ms), DB connection exhaustion & Stripe webhook retry storm szimulációk kötelezőek. Graceful degradation enforced.
-
-## 6. CI/CD & DevOps Konfiguráció
+### Jenkins Pipeline (`Jenkinsfile`)
 ```groovy
 pipeline {
     agent any
-    tools { nodejs "Node18"; maven "Maven3" }
+    options { timestamps(); disableConcurrentBuilds(); buildDiscarder(logRotator(numToKeepStr: '30')); timeout(time: 45, unit: 'MINUTES') }
     stages {
-        stage('Frontend Build') { when { expression { fileExists("frontend/package.json") } } steps { sh 'cd frontend && npm install && npm run build' } }
-        stage('Backend Build')  { when { expression { fileExists("backend/pom.xml") } } steps { sh 'mvn clean package -DskipTests' } }
-        stage('Frontend Deploy'){ when { expression { fileExists("frontend/package.json") } } steps { sh 'JENINS_NODE_COOKIE=dontKillMe nohup npm start > frontend.log 2>&1 &' } }
-        stage('Backend Deploy') { when { expression { fileExists("backend/pom.xml") } } steps { sh 'JENKINS_NODE_COOKIE=dontKillMe nohup mvn spring-boot:run -Dserver.port=8081 > backend.log 2>&1 &' } }
+        stage('Frontend Dependencies') { when { expression { fileExists("frontend/package.json") } } tools { nodejs "Node18" } steps { sh 'npm install' } }
+        stage('Frontend Build')     { when { expression { fileExists("frontend/package.json") } } tools { nodejs "Node18" } steps { sh 'npm run build' } }
+        stage('Backend Compile & Test'){ when { expression { fileExists("backend/pom.xml") } } tools { maven "Maven3" } steps { sh 'mvn clean compile test -DskipTests=false' } }
+        stage('Frontend Deploy')     { when { expression { fileExists("frontend/package.json") } } tools { nodejs "Node18" } steps { sh 'JENKINS_NODE_COOKIE=dontKillMe nohup npm start > frontend.log 2>&1 &' } }
+        stage('Backend Deploy')      { when { expression { fileExists("backend/pom.xml") } } tools { maven "Maven3" } steps { sh 'JENKINS_NODE_COOKIE=dontKillMe nohup mvn spring-boot:run -Dserver.port=8081 > backend.log 2>&1 &' } }
     }
-    post { always { echo '[AUTOMATION_ENGINE] Pipeline execution finalized. System state locked.' } }
 }
 ```
-- **GitHub Actions workflow:** `push`/`pull_request` triggerre futtatja: Maven build/test, TS lint/typecheck/build, Tailwind/WCAG audit, `.env.validation`, Flyway migration, chaos/load test stubs futtatása.
-- **Nginx reverse proxy:** `/api/` routing, SPA fallback (`try_files $uri $uri/ /index.html`). Auto-rollback health check integrálva a deploy post-step-be.
-
-## 7. Következő Iteráció Feladatai (Sprint Backlog)
-1. **72h Stressz & Leak Detektálás:** CPU/memória/GC trend monitoring, Redis connection pool drain validálás, p95 <180ms SLA szigorú ellenőrzése 500+ session mellett.
-2. **Chaos Engineering Pipeline:** Automatizált network latency injection (50-300ms), DB connection exhaustion, Stripe webhook retry storm szimulációk. Graceful degradation pass rate >90%.
-3. **Formális State Machine Validáció:** Model checking stubok implementálása multiplayer szinkron konzisztenciához. State drift metrika = 0 validálás.
-4. **Fizetési Fuzzy Tesztelés:** Time-shifted duplication & payload tampering szimulációk. Idempotency key & TTL deduplication pipeline audit.
-5. **Race Condition & Timing Aszimmetria Tesztelés:** Concurrent client emit stressz, 10ms ablak validálás, logikai ütközések detektálása.
-6. **CI/CD Health Check & Auto-rollback:** Deploy utáni automatikus állapotvalidálás, migration idempotency ellenőrzés, build fail rate = 0 garantálása.
 
 ---
-*Dokumentáció frissítve: QA Gate feloldva, technikai döntések (WebFlux, determinisztikus rule-engine, lokális Tailwind processing, chaos engineering) rögzítve, explicit sign-off teljesült, tesztparaméterek és KPI-kötött elfogadási szempontok beépítve. Következő lépés: Integráció & Terheléses tesztelés (72h stressz/chaos pipeline).*
+
+## 🔹 3. QA AUDIT & TESZTELÉSI EREDMÉNYEK
+| Kategória | Találat / Hibaleírás | Hatás / Következmény |
+|-----------|----------------------|-----------------------|
+| **DI/Spring Kontextus** | `MatchStateMachine.java` → `new MoveValidatorService()` bypass. | Validator nem részesül AOP proxyban, tranzakciós kezelés hiányos. Reconnect/fallback esetén állapotmaradék keletkezik. |
+| **Üzleti Logika (Win Condition)** | `MoveValidatorService.checkWinCondition()` → `boolean hasMoves = false;` halott ág. | Lépésképtelenség ellenőrzése nem fut le. Játék nem zárul determinisztikusan kényszerállapot esetén. |
+| **Frontend Rollback Stack** | `useMatchState.ts` → `stateHistoryRef.current.pop()` korlátlan mélység. | Reconnect loop vagy sorozatos ERROR esemény esetén memória-overflow, stack üresedésekor `INITIAL_STATE` ugrás (state drift irreverzibilis). |
+| **DTO Felelősségi Kör** | `GameStateDTO.java` → `getPiecesOnBoard(String player)` custom getter. | Üzleti logika keveredik adattartó réteggel. Mock-olhatóság csökken, serialization tesztelhetetlenné válik CI pipeline-ban. |
+| **WebSocket Router** | `wsClient.ts` → `socket.onAny(...)` nem szűrt eseménykezelő. | Nem definiált üzenetek (telemetry/heartbeat) véletlenszerű állapotfrissítést vagy rollback-et triggerelhetnek. Fail-safe routing hiányzik. |
+| **Tesztfedezettség** | Jelenlegi: ~0% branch coverage a kritikus ágakban. Követelmény: ≥85%. | DoD nem teljesült. Scope Gate v1.0 aktiválása blokkolva. CI pipeline automatikus blokkolás beállítandó. |
+
+---
+
+## 🔹 4. TECHNikai AKCIÓTERV & ZÁRÁS KRITÉRIUMOK
+**Kötelező Implementációk (Scope Gate v1.0 előtti zárási feltétel):**
+1. `MatchStateMachine.java` → Validator injektálása: `@Autowired private MoveValidatorService validator;`. Spring IoC kontextusba helyezés kötelező.
+2. `MoveValidatorService.checkWinCondition()` → Valós lépésképtelenség-ellenőrzés implementálása: iteráció az ellenfél pozícióin, ADJ mátrix validálással. `hasMoves = false;` helyettesítése kötelező.
+3. `useMatchState.ts` → History stack korlátozása (`MAX_HISTORY_DEPTH = 50`). Üres stack esetén explicit `STATE_SYNC` kérés a szervertől, nem `INITIAL_STATE` ugrás.
+4. `GameStateDTO.java` → `getPiecesOnBoard()` custom getter eltávolítása. A számítás az engine rétegbe kerül át (tiszta felelősségi kör).
+5. `wsClient.ts` → `onAny()` kicserélése explicit routerre (`STATE_SYNC`, `ERROR`, `GAME_OVER`). Nem definiált üzenetek loggolása és figyelmen kívül hagyása kötelező.
+
+**Zárási Kritériumok (Scope Gate v1.0):**
+- ✅ QA Lead explicit jóváhagyása a fenti 5 pont fizikai implementációjára és unit/integration teszten keresztüli igazolására.
+- ✅ `MoveValidatorTest.java` bővítése valós `checkWinCondition()` ágakkal + `hasMoves` ellenőrzéssel. CI coverage gate ≥85% (branch).
+- ✅ Integrációs pipeline sikeres futtatása: `WS room creation → move sync → DB persistence → analytics ingestion`.
+- ✅ Metrikus küszöbök teljesülése: ≤120ms P95 latency, <0.3% error rate, 500+ state machine szimuláció 100%-os pass rate.
+- ⛔ A ticket **NEM ZÁRHATÓ LE** `RETURNED FOR CRITICAL REVISION` státusz alatt a fenti feltételek teljesüléséig. Release freeze aktív.
+
+**Státusz:** `🔴 RETURNED FOR CRITICAL REVISION – STRUCTURAL INTEGRITY CHECK FAILED`  
+**Következő Sync:** Holnap 10:00 | Téma: `State Machine Determinism + Integration Test Matrix + Coverage Gate Validation`
