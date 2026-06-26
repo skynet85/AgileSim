@@ -1,37 +1,60 @@
--- PostgreSQL Event Sourcing & Audit Trail Schema v0.2
+-- Determinisztikus állapotgép alapjai. Az emberi felejtés helyett a relációs szigorútság lép színpadra.
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Guest session management (GDPR-light, 30d TTL)
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    username VARCHAR(50) UNIQUE NOT NULL,
+    auth_provider_id VARCHAR(255),
+    settings JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE sessions (
-    guest_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    device_fingerprint TEXT NOT NULL,
-    ip_hash CHAR(64) NOT NULL,
-    token_hash VARCHAR(255) UNIQUE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    session_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    player_a_uuid UUID REFERENCES users(id) ON DELETE SET NULL,
+    player_b_uuid UUID REFERENCES users(id) ON DELETE SET NULL,
+    mode VARCHAR(10) CHECK (mode IN ('1p','2p')),
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active','completed','aborted')),
+    start_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    end_time TIMESTAMP WITH TIME ZONE,
+    winner_uuid UUID REFERENCES users(id),
+    metadata JSONB DEFAULT '{}' -- Board state snapshot placeholder for recovery
 );
 
--- Match metadata (stateless, only control plane data)
-CREATE TABLE matches (
-    match_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    mode VARCHAR(10) CHECK (mode IN ('1P', '2P')),
-    status VARCHAR(20) DEFAULT 'WAITING' CHECK (status IN ('WAITING', 'ACTIVE', 'FINISHED')),
-    start_ts TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    end_ts TIMESTAMP WITH TIME ZONE,
-    winner_player INT CHECK (winner_player IS NULL OR winner_player IN (1, 2))
+CREATE TABLE moves_log (
+    move_id BIGSERIAL PRIMARY KEY,
+    session_id UUID REFERENCES sessions(session_id) ON DELETE CASCADE,
+    player_id UUID REFERENCES users(id),
+    phase VARCHAR(20) CHECK (phase IN ('placing','moving','capturing')),
+    coords JSONB NOT NULL, -- {"from": int, "to": int} or {"place": int}
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Append-only event log for deterministic state reconstruction & analytics
-CREATE TABLE match_events (
-    event_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    match_id UUID REFERENCES matches(match_id) ON DELETE CASCADE,
-    player_id INT CHECK (player_id IN (1, 2)),
-    type VARCHAR(30) NOT NULL CHECK (type IN ('MOVE_ATTEMPT', 'VALIDATED', 'PHASE_TRANSITION', 'MILL_TRIGGERED', 'GAME_END')),
-    payload JSONB NOT NULL, -- Explicit Jackson serialization enforced in BE layer
-    seq_id BIGINT NOT NULL,
-    ts TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT append_only_guard UNIQUE (match_id, seq_id) ON CONFLICT DO NOTHING
+CREATE TABLE inventory (
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    item_type VARCHAR(50),
+    item_id VARCHAR(100),
+    acquired_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, item_id)
 );
 
--- Optimized indexes for analytics traceability & replay recovery
-CREATE INDEX idx_events_match_seq ON match_events USING btree (match_id, seq_id);
-CREATE INDEX idx_events_type_ts ON match_events USING btree (type, ts) WHERE type IN ('GAME_END', 'SESSION_DURATION');
+CREATE TABLE config_flags (
+    key VARCHAR(100) PRIMARY KEY,
+    value_json JSONB NOT NULL,
+    updated_by UUID REFERENCES users(id),
+    version INT DEFAULT 1
+);
+
+-- Partitionált analitika: az idő nem áll meg, de az adatok rendezve maradnak.
+CREATE TABLE analytics_events (
+    event_id BIGSERIAL,
+    session_id UUID,
+    user_id UUID,
+    event_name VARCHAR(100) NOT NULL,
+    ts TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    payload_json JSONB,
+    PRIMARY KEY (event_id, ts)
+) PARTITION BY RANGE (ts);
+
+CREATE TABLE analytics_events_y2024m01 PARTITION OF analytics_events 
+FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
