@@ -1,27 +1,42 @@
-package com.malom.config;
+package com.malom.controller;
 
-import org.springframework.context.annotation.Configuration;
-import org.springframework.messaging.simp.config.MessageBrokerRegistry;
-import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
-import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
-import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+import com.malom.service.GameStateService;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
-@Configuration
-@EnableWebSocketMessageBroker
-public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+@RestController
+@RequestMapping("/api/v1/matches/{roomId}")
+public class MatchController {
 
-    @Override
-    public void configureMessageBroker(MessageBrokerRegistry config) {
-        // Destinations for clients to receive messages (Server -> Client)
-        config.enableSimpleBroker("/game");
-        config.setApplicationDestinationPrefixes("/app");
+    private final GameStateService gameStateService;
+
+    public MatchController(GameStateService gameStateService) {
+        this.gameStateService = gameStateService;
     }
 
-    @Override
-    public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // Fixes Protocol Dissonance: Explicit STOMP endpoint with SockJS fallback for legacy clients
-        registry.addEndpoint("/ws/game")
-                .setAllowedOriginPatterns("*")
-                .withSockJS();
+    @PutMapping("/state")
+    public ResponseEntity<?> updateGameState(
+            @PathVariable String roomId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody MoveRequest request) {
+        
+        try {
+            // Server-authoritative validation & deterministic state transition
+            gameStateService.processMove(roomId, idempotencyKey, request);
+            return ResponseEntity.ok().build();
+        } catch (IllegalStateException e) {
+            // 409 Conflict: Invalid transition or key collision handled by service layer
+            return ResponseEntity.status(409).body("{\"error\": \"" + e.getMessage() + "\"}");
+        }
     }
+
+    @GetMapping("/state")
+    public ResponseEntity<?> getGameState(@PathVariable String roomId) {
+        var snapshot = gameStateService.getSnapshot(roomId);
+        return ResponseEntity.ok(snapshot);
+    }
+    
+    // Request DTO placeholder for brevity
+    public record MoveRequest(String action, Object payload) {}
 }
