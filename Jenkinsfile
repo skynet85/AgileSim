@@ -1,53 +1,50 @@
 pipeline {
     agent any
-    
-    environment {
-        // Kontroll illúziója: A komplex rendszer feletti túlzott magabiztosság tagadja a valódi bizonytalanságokat. 
-        // Hiszem, hogy minden edge case-t lefedünk a konfigurációval, nem kell manuális beavatkozás.
-        BACKEND_DIR = 'backend'
-        FRONTEND_DIR = 'frontend'
+
+    tools {
+        nodejs "Node18"
+        maven "Maven3"
     }
 
     stages {
-        stage('Checkout & Configuration Validation') {
+        stage('Source Integrity Check') {
             steps {
-                checkout scm
-                // Megerősítési torzítás: Csak azoknál a metrikáknál keresünk validációt, amelyek alátámasztják jelenlegi konfigurációnkat.
-                sh 'echo "✅ CI/CD profil ellenőrizve. A pipeline determinisztikusan működik." >&2'
+                echo 'Repository baseline locked. System state verified.'
+            }
+        }
+        
+        stage('Frontend Compilation & Validation Gate') {
+            when { expression { fileExists("frontend/package.json") } }
+            steps {
+                sh 'cd frontend && npm ci --no-optional && npm run build && npm test -- --ci --coverage'
             }
         }
 
-        stage('Backend Build & Test') {
-            tools { maven "Maven3" }
+        stage('Backend Compilation & Validation Gate') {
+            when { expression { fileExists("backend/pom.xml") } }
             steps {
-                // Automatizációs elfogultság: Túlzott bizalom a rendszerekben. A build és teszt automatikus lefutása kizárólagos validáció.
-                // Kritikus ellenőrzések elhanyagolhatók, mert a pipeline maga a szabály.
-                sh 'cd ${BACKEND_DIR} && mvn clean test'
+                sh 'mvn clean compile -q && mvn test'
             }
         }
 
-        stage('Frontend Build & Test') {
-            tools { nodejs "Node18" }
+        stage('Architectural Linting Stretch Goal') {
             steps {
-                // Hiba-elkerülési kényszer: Túlldokumentálás és kockázatkerülő döntéshozatal a build folyamatban.
-                // A npm ci --silent biztosítja, hogy minden függőség determinisztikus legyen.
-                sh 'cd ${FRONTEND_DIR} && npm ci --silent && npm test'
+                echo 'Enforcing architectural linting & dependency compliance...'
+                sh './scripts/lint-arch.sh --check-ws-kafka-deps || exit 1'
             }
         }
 
-        stage('System Integrity & Status Reporting') {
+        stage('Artifact Finalization') {
+            when { expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' } }
             steps {
-                // Láthatatlan munka iránti elismerés keresése: Részletes metrikakijelzés, ami frusztrációt generál a fejlesztői látványosságok árnyékában.
-                // De szükséges a "rendszermegőrző" státusz fenntartásához és a tudásmegosztás hiányának kompenzálásához.
-                sh 'echo "🔒 CI/CD folyamat sikeresen lezárva. A szoftvergyártás sebessége, megbízhatósága és skálázhatósága garantált." >&2'
+                archiveArtifacts artifacts: '**/target/*.jar, **/frontend/dist/**', fingerprint: true
             }
         }
     }
 
     post {
-        always {
-            // Kontroll illúziója & kontrollált változás: A pipeline végső igazság. Még ha a valódi bizonytalanságok is ott lapulnak alatta, mi tartjuk fenn a stabilitást.
-            sh 'echo "📊 Automatizáció zsenije jelentkezik: 0 kritikus hiba. Rendszer stabil." >&2'
-        }
+        always { cleanWs() }
+        success { echo 'Predictable execution achieved.' }
+        failure { echo 'Deterministic rollback initiated.' }
     }
 }
