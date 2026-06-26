@@ -1,27 +1,33 @@
 on
 {
-  "name": "malom-mvp-frontend",
-  "version": "2.1.0-MVP-FIXED",
+  "name": "modified-malom-frontend",
+  "version": "1.0.0",
   "private": true,
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@stomp/stompjs": "^7.0.0",
-    "sockjs-client": "^1.6.1",
-    "axios": "^1.6.2",
-    "framer-motion": "^10.16.4"
+    "tailwindcss": "^3.4.0",
+    "@tailwindcss/forms": "^0.5.7",
+    "socket.io-client": "^4.7.4",
+    "axios": "^1.6.7",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.1",
-    "tailwindcss": "^3.3.5",
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.32",
-    "vite": "^5.0.8"
+    "@testing-library/react": "^14.1.2",
+    "jest": "^29.7.0"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "test": "vitest run",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test"
+  },
+  "eslintConfig": {
+    "extends": ["react-app"]
+  },
+  "browserslist": {
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
   }
 }
