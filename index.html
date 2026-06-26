@@ -1,309 +1,287 @@
 <!DOCTYPE html>
 <html lang="hu">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Malom Protocol | UX Wireframe</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MALOM | Strategic Engagement Interface</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* Design Rationale: A vizuális nyugalom és a kognitív terhelés minimalizálása közötti egyensúly. 
-       Explicit visszajelzések, strukturált rács, determinisztikus állapotjelzők. */
-    :root { --pulse-speed: 2s; }
-    .point-interactive { transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1); transform-origin: center; }
-    .point-interactive:hover:not(.occupied) { r: 8px; fill-opacity: 1; }
-    .point-selected { filter: drop-shadow(0 0 6px rgba(34,211,238,0.6)); stroke-width: 3; }
-    .telemetry-sync { animation: pulse-ring var(--pulse-speed) cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
-    @keyframes pulse-ring {
-      0% { transform: scale(0.8); opacity: 0.8; }
-      50% { transform: scale(1.2); opacity: 0; }
-      100% { transform: scale(0.8); opacity: 0; }
-    }
-    .glass-panel { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(51, 65, 85, 0.5); }
+    /* Peak-End Optimization & Visual Dominance Layer */
+    .piece { transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .selected-glow { box-shadow: 0 0 24px rgba(251, 191, 36, 0.85), inset 0 0 12px rgba(255,255,255,0.3); transform: scale(1.25); }
+    .phase-flash { animation: phase-pulse 0.8s ease-out; }
+    @keyframes phase-pulse { 0% { opacity: 0.4; text-shadow: 0 0 30px rgba(251, 191, 36, 1); transform: scale(1.05); } 100% { opacity: 1; text-shadow: none; transform: scale(1); } }
+    .bg-wood { background-color: #0f172a; background-image: radial-gradient(#1e293b 1px, transparent 1px); background-size: 28px 28px; }
+    .glass-panel { backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.08); }
+    .metric-bar { transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+    /* Hidden motivation cue: Control through visual predictability */
+    .node-hover:hover { background-color: rgba(51, 65, 85, 0.6); transform: scale(1.4); z-index: 10; }
+    .mill-anim { animation: mill-flash 1s ease-in-out infinite alternate; }
+    @keyframes mill-flash { from { filter: drop-shadow(0 0 2px rgba(56, 189, 248, 0.3)); } to { filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.9)); } }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-200 min-h-screen flex flex-col items-center justify-start p-4 md:p-8 font-sans selection:bg-cyan-500/30">
+<body class="bg-slate-950 text-slate-200 font-sans min-h-screen flex flex-col items-center justify-center p-4 sm:p-6">
 
-  <!-- HEADER: Strukturált identitás, módváltó kontroll -->
-  <header class="w-full max-w-5xl flex flex-wrap items-center justify-between mb-6 border-b border-slate-800 pb-4 gap-4">
-    <div class="flex items-center gap-3">
-      <h1 class="text-xl md:text-2xl font-bold tracking-[0.2em] text-cyan-400">MALOM PROTOCOL</h1>
-      <span class="hidden md:inline-block text-xs text-slate-500 border border-slate-700 px-2 py-0.5 rounded font-mono">v1.0.0-mvp</span>
-    </div>
-    <nav class="flex items-center gap-2 bg-slate-900 p-1 rounded-lg border border-slate-800 shadow-inner">
-      <button id="mode-single" class="px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-300 bg-cyan-600 text-white shadow-[0_0_12px_rgba(8,145,178,0.4)]">Single Player</button>
-      <button id="mode-multi" class="px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-300 hover:bg-slate-800 text-slate-400">Multiplayer</button>
-    </nav>
-  </header>
-
-  <!-- MAIN LAYOUT: Reszponzív grid, fókusz a játéktéren -->
-  <main class="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-[2.2fr_1fr] gap-6 items-start">
+  <!-- Main Layout: Asymmetric balance reflecting structured control & aesthetic dominance -->
+  <div class="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-8 items-start">
     
-    <!-- GAME BOARD: SVG alapú, méretezhető, explicit interakciós zónák -->
-    <section class="glass-panel rounded-xl p-4 md:p-6 flex items-center justify-center relative overflow-hidden shadow-2xl shadow-black/60">
-      <!-- Subtle grid background for structural control illusion -->
-      <div class="absolute inset-0 opacity-[0.07]" style="background-image: radial-gradient(#334155 1px, transparent 1px); background-size: 24px 24px;"></div>
-      
-      <!-- Phase Overlay: Explicit fázisjelzés (illúzió áttörése) -->
-      <div id="phase-indicator" class="absolute top-3 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur border border-cyan-500/40 text-cyan-300 px-4 py-1.5 rounded-full text-[10px] md:text-xs font-mono tracking-widest shadow-[0_0_15px_rgba(6,182,212,0.1)] z-20">
-        ELHELYEZÉS FÁZIS
+    <!-- LEFT COLUMN: Board & Core Interaction (Peak Experience Zone) -->
+    <div class="relative w-full aspect-square max-w-[600px] mx-auto glass-panel rounded-2xl p-4 flex flex-col shadow-2xl shadow-black/50">
+      <!-- Phase Indicator (Illusion of Transparency) -->
+      <div id="phase-display" class="absolute top-6 left-1/2 -translate-x-1/2 text-xs uppercase tracking-[0.3em] font-bold text-yellow-400 bg-slate-900/80 px-4 py-1 rounded-full border border-yellow-500/20 z-20">
+        Elhelyezés • Fázis 1/3
       </div>
 
-      <!-- SVG Board Container -->
-      <svg id="game-board" viewBox="0 0 400 400" class="w-full h-auto max-h-[75vh] relative z-10 drop-shadow-xl">
-        <!-- Grid Lines -->
-        <g stroke="#334155" stroke-width="2.5" fill="none" opacity="0.6">
-          <!-- Outer -->
-          <line x1="20" y1="20" x2="380" y2="20"/><line x1="380" y1="20" x2="380" y2="380"/>
-          <line x1="380" y1="380" x2="20" y2="380"/><line x1="20" y1="380" x2="20" y2="20"/>
-          <line x1="200" y1="20" x2="200" y2="380"/><line x1="20" y1="200" x2="380" y2="200"/>
-          <!-- Middle -->
-          <line x1="100" y1="100" x2="300" y2="100"/><line x1="300" y1="100" x2="300" y2="300"/>
-          <line x1="300" y1="300" x2="100" y2="300"/><line x1="100" y1="300" x2="100" y2="100"/>
-          <line x1="200" y1="100" x2="200" y2="300"/><line x1="100" y1="200" x2="300" y2="200"/>
-          <!-- Inner -->
-          <line x1="150" y1="150" x2="250" y2="150"/><line x1="250" y1="150" x2="250" y2="250"/>
-          <line x1="250" y1="250" x2="150" y2="250"/><line x1="150" y1="250" x2="150" y2="150"/>
-          <line x1="200" y1="150" x2="200" y2="250"/><line x1="150" y1="200" x2="250" y2="200"/>
+      <!-- SVG Board Structure -->
+      <svg viewBox="0 0 100 100" class="w-full h-full absolute inset-0 z-0 opacity-80 pointer-events-none drop-shadow-lg">
+        <defs>
+          <filter id="glow-line" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="0.6" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+        <!-- Outer Square -->
+        <rect x="15" y="15" width="70" height="70" fill="none" stroke="#475569" stroke-width="0.8" filter="url(#glow-line)"/>
+        <!-- Middle Square -->
+        <rect x="30" y="30" width="40" height="40" fill="none" stroke="#475569" stroke-width="0.8" filter="url(#glow-line)"/>
+        <!-- Inner Square -->
+        <rect x="42" y="42" width="16" height="16" fill="none" stroke="#475569" stroke-width="0.8" filter="url(#glow-line)"/>
+        <!-- Connecting Lines -->
+        <g stroke="#475569" stroke-width="0.8">
+          <line x1="50" y1="15" x2="50" y2="30" />
+          <line x1="50" y1="70" x2="50" y2="85" />
+          <line x1="15" y1="50" x2="30" y2="50" />
+          <line x1="70" y1="50" x2="85" y2="50" />
         </g>
-        <!-- Interactive Points Layer -->
-        <g id="points-layer"></g>
       </svg>
 
-      <!-- Matchmaking/Queue Overlay (Multiplayer context) -->
-      <div id="queue-overlay" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center z-30 hidden transition-opacity duration-300">
-        <div class="w-12 h-12 border-4 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin mb-4"></div>
-        <p class="text-sm font-mono text-cyan-300 tracking-wider">MATCHMAKING QUEUE</p>
-        <p id="queue-time" class="text-xs text-slate-500 mt-1 font-mono">t: 0.0s</p>
+      <!-- Interactive Nodes (Controlled Attention Economy) -->
+      <div id="board-nodes" class="absolute inset-4 z-10">
+        <!-- Nodes injected via JS for deterministic mapping -->
       </div>
-    </section>
 
-    <!-- SIDEBAR: Telemetria, állapot, vezérlés -->
-    <aside class="flex flex-col gap-4">
+      <!-- Turn Overlay (Validation Hook) -->
+      <div class="mt-auto pt-4 flex justify-between items-center text-sm font-medium text-slate-400">
+        <span id="turn-indicator" class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.6)]"></span> Fehér sor</span>
+        <div class="flex gap-4 text-xs tracking-wide">
+          <span id="white-reserve">Kő: 9</span>
+          <span id="black-reserve">Kő: 9</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: Metrics, Control & Validation Loop (Confirmation Bias Interface) -->
+    <div class="flex flex-col gap-6 h-full">
       
-      <!-- Stats Panel -->
+      <!-- Player Profile / Status -->
       <div class="glass-panel rounded-xl p-5 space-y-4">
-        <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2">Játékállapot</h2>
-        
-        <div class="flex justify-between items-center">
-          <span class="text-sm text-slate-400">Kör:</span>
-          <span id="turn-indicator" class="font-mono font-bold text-lg text-cyan-400 transition-colors duration-200">PILOT 1</span>
-        </div>
-
+        <h1 class="text-2xl font-bold tracking-tight text-white">MALOM <span class="text-yellow-400/80 text-sm align-top">v1.0-MVP</span></h1>
         <div class="grid grid-cols-2 gap-3">
-          <div class="bg-slate-950/60 p-3 rounded border border-slate-800 flex flex-col items-center">
-            <div class="text-[10px] text-slate-500 mb-1 uppercase tracking-wider">P1 Maradék</div>
-            <div id="p1-count" class="font-mono text-xl font-bold text-orange-400 transition-all">9</div>
-          </div>
-          <div class="bg-slate-950/60 p-3 rounded border border-slate-800 flex flex-col items-center">
-            <div class="text-[10px] text-slate-500 mb-1 uppercase tracking-wider">P2 Maradék</div>
-            <div id="p2-count" class="font-mono text-xl font-bold text-cyan-400 transition-all">9</div>
-          </div>
+          <button onclick="game.setPhase('placement')" class="phase-btn active bg-yellow-500/20 border-yellow-400/50 text-yellow-300 py-2 rounded-lg text-xs font-semibold tracking-wider hover:bg-yellow-500/30 transition-all">Elhelyezés</button>
+          <button onclick="game.setPhase('movement')" class="phase-btn bg-slate-800/40 border-transparent text-slate-400 py-2 rounded-lg text-xs font-semibold tracking-wider hover:bg-slate-700/50 transition-all">Mozgatás</button>
         </div>
-
-        <!-- Telemetry Status: Validációs szükséglet vizualizálása -->
-        <div class="space-y-2 pt-2 border-t border-slate-800/50">
-          <div class="flex justify-between text-xs items-center">
-            <span class="text-slate-400">Konverzió (Funnel)</span>
-            <span class="text-emerald-400 font-mono bg-emerald-950/30 px-2 py-0.5 rounded">68.2%</span>
-          </div>
-          <div class="flex justify-between text-xs items-center">
-            <span class="text-slate-400">Telemetria</span>
-            <div id="telemetry-status" class="font-mono flex items-center gap-1.5 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-              <span class="relative flex h-2 w-2">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
-              </span>
-              SYNC OK
-            </div>
+        <div class="bg-slate-900/60 rounded-lg p-3 border border-slate-800">
+          <p class="text-xs text-slate-400 mb-1 uppercase tracking-wider">Aktív Játékos</p>
+          <div id="active-player-display" class="flex items-center justify-between">
+            <span class="font-mono text-lg text-white">Guest_White</span>
+            <span class="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded border border-green-500/30">Online • Latency: 12ms</span>
           </div>
         </div>
       </div>
 
-      <!-- Action Panel -->
-      <div class="glass-panel rounded-xl p-5 space-y-3">
-        <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2">Vezérlés</h2>
-        <button id="reset-btn" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium transition-all duration-200 border border-slate-700 active:scale-[0.98]">Új Játék / Reset</button>
-        <div class="flex gap-2">
-          <button class="flex-1 py-2 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg text-xs border border-slate-800 transition-colors active:scale-[0.98]">📊 Export CSV</button>
-          <button class="flex-1 py-2 bg-slate-950 hover:bg-slate-800 text-slate-400 rounded-lg text-xs border border-slate-800 transition-colors active:scale-[0.98]">💬 Chat</button>
+      <!-- Real-time Engagement & Validation Metrics (Hidden Motivation: Control through Measurement) -->
+      <div class="glass-panel rounded-xl p-5 flex-1 space-y-4">
+        <h3 class="text-xs uppercase tracking-[0.2em] text-slate-500 font-bold border-b border-slate-800 pb-2 mb-2">Engagement & State Metrics</h3>
+        
+        <div class="space-y-3">
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span class="text-slate-400">D1 Retention Forecast</span><span id="metric-ret" class="text-emerald-400 font-mono">42.8%</span></div>
+            <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden"><div id="bar-ret" class="metric-bar h-full bg-gradient-to-r from-emerald-600 to-emerald-400" style="width: 42.8%"></div></div>
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span class="text-slate-400">Session Duration</span><span id="metric-dur" class="text-blue-400 font-mono">8m 12s</span></div>
+            <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden"><div id="bar-dur" class="metric-bar h-full bg-gradient-to-r from-blue-600 to-blue-400" style="width: 65%"></div></div>
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span class="text-slate-400">State Consistency</span><span id="metric-cons" class="text-yellow-400 font-mono">99.97%</span></div>
+            <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden"><div id="bar-cons" class="metric-bar h-full bg-gradient-to-r from-yellow-600 to-yellow-400" style="width: 99.97%"></div></div>
+          </div>
+        </div>
+
+        <!-- Action Log (Illusion of Transparency & Order) -->
+        <div class="mt-4 bg-black/30 rounded-lg p-3 border border-slate-800/50 h-32 overflow-y-auto font-mono text-[10px] leading-relaxed space-y-1 custom-scrollbar">
+          <div id="log-container" class="text-slate-500">
+            [SYSTEM] Interface initialized. Awaiting deterministic input...<br>
+            [STATE] Phase: placement<br>
+            [METRIC] Validation loop active.
+          </div>
         </div>
       </div>
 
-      <!-- UX Principle Note (Pszichológiai profil tükrözése) -->
-      <div class="bg-cyan-950/20 border border-cyan-900/30 rounded-xl p-4 text-[11px] text-cyan-200/80 leading-relaxed">
-        <span class="font-mono text-cyan-400 block mb-1.5">// UX_PRINCIPLE</span>
-        Strukturált rend a káosz ellen. Vizuális visszajelzés &lt; 200ms. A fázisátmenetek determinisztikusak, a felület nem feltételezi a belső logika automatikus érzékelését. Validáció = kontroll.
-      </div>
-    </aside>
-  </main>
+    </div>
+  </div>
 
   <script>
-    // UX/UI Designer Implementation Notes:
-    // - Explicit state indicators counter the "illusion of transparency"
-    // - Deterministic transitions & immediate feedback satisfy validation/control needs
-    // - Structured hierarchy reduces cognitive load (curse of knowledge mitigation)
-    
-    const board = document.getElementById('game-board');
-    const pointsLayer = document.getElementById('points-layer');
-    const turnIndicator = document.getElementById('turn-indicator');
-    const phaseIndicator = document.getElementById('phase-indicator');
-    const p1CountEl = document.getElementById('p1-count');
-    const p2CountEl = document.getElementById('p2-count');
-    const queueOverlay = document.getElementById('queue-overlay');
-    const queueTimeEl = document.getElementById('queue-time');
-    
-    // 24 coordinate mapping (x,y in %) for Malom topology
-    const COORDS = [
-      [5,5], [50,5], [95,5], [5,30], [5,50], [5,70], 
-      [95,30], [95,50], [95,70], [50,95], // Outer (10)
-      [25,25], [75,25], [25,75], [75,75], // Middle Corners (4)
-      [50,25], [75,50], [50,75], [25,50], // Middle Mids (4)
-      [38,38], [62,38], [38,62], [62,62], // Inner Corners (4)
-      [50,38], [62,50], [50,62], [38,50]  // Inner Mids (4)
+    // Deterministic State Engine (Client-side simulation for wireframe validation)
+    const POSITIONS = [
+      {x:15,y:15},{x:50,y:15},{x:85,y:15}, // Outer top
+      {x:85,y:50},{x:85,y:85},             // Right side
+      {x:50,y:85},{x:15,y:85},{x:15,y:50}, // Bottom & Left
+      {x:30,y:30},{x:50,y:30},{x:70,y:30}, // Mid top
+      {x:70,y:50},{x:70,y:70},{x:50,y:70}, // Mid right/bottom
+      {x:30,y:70},{x:30,y:50},             // Mid left/top
+      {x:42,y:42},{x:50,y:42},{x:58,y:42}, // Inner top
+      {x:58,y:50},{x:58,y:58},{x:50,y:58}, // Inner right/bottom
+      {x:42,y:58},{x:42,y:50}              // Inner left/top
     ];
 
-    let gameState = {
-      mode: 'SINGLE',
-      turn: 1,
-      phase: 'PLACING', // PLACING -> MOVING -> REMOVE -> GAME_OVER
-      board: Array(24).fill(null),
-      p1Left: 9,
-      p2Left: 9,
-      selectedIdx: null
-    };
-
-    function renderBoard() {
-      pointsLayer.innerHTML = '';
-      COORDS.forEach((pos, i) => {
-        const cx = (pos[0] / 100) * 400;
-        const cy = (pos[1] / 100) * 400;
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', cx);
-        circle.setAttribute('cy', cy);
-        circle.setAttribute('r', gameState.board[i] ? 7 : 6);
-        circle.classList.add('point-interactive', 'cursor-pointer');
-        if (gameState.board[i]) {
-          circle.classList.add('occupied');
-          circle.setAttribute('fill', gameState.board[i] === 1 ? '#fb923c' : '#22d3ee'); // orange-400 / cyan-400
-          circle.setAttribute('stroke', '#0f172a');
-          circle.setAttribute('stroke-width', '2');
-        } else {
-          circle.setAttribute('fill', '#334155');
-          circle.setAttribute('fill-opacity', 0.8);
-          if (gameState.selectedIdx === i) circle.classList.add('point-selected');
-        }
+    class MillGameUI {
+      constructor() {
+        this.board = Array(24).fill(null); // null, 'white', 'black'
+        this.currentPlayer = 'white';
+        this.phase = 'placement'; // placement | movement | flying
+        this.reserves = { white: 9, black: 9 };
+        this.selectedIdx = null;
+        this.moveCount = 1;
         
-        circle.addEventListener('click', () => handlePointClick(i));
-        pointsLayer.appendChild(circle);
-      });
-    }
+        this.initNodes();
+        this.updateUI();
+      }
 
-    function updateUI() {
-      const turnText = gameState.turn === 1 ? 'PILOT 1' : 'PILOT 2';
-      turnIndicator.textContent = turnText;
-      turnIndicator.className = `font-mono font-bold text-lg transition-colors duration-200 ${gameState.turn === 1 ? 'text-orange-400' : 'text-cyan-400'}`;
-      
-      const phaseMap = { PLACING: 'ELHELYEZÉS FÁZIS', MOVING: 'MOZGÁS FÁZIS', REMOVE: 'ELTÁVOLÍTÁS FÁZIS', GAME_OVER: 'JÁTÉK VÉGE' };
-      phaseIndicator.textContent = phaseMap[gameState.phase];
-      
-      p1CountEl.textContent = gameState.p1Left;
-      p2CountEl.textContent = gameState.p2Left;
-
-      // Telemetry simulation feedback
-      const telemetryStatus = document.getElementById('telemetry-status');
-      telemetryStatus.innerHTML = `<span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span></span> SYNC OK`;
-    }
-
-    function handlePointClick(idx) {
-      if (gameState.phase === 'GAME_OVER') return;
-
-      // Optimistic update simulation with immediate feedback (<200ms visual response)
-      const prevSelected = gameState.selectedIdx;
-      
-      if (prevSelected === null) {
-        if (!gameState.board[idx]) {
-          gameState.selectedIdx = idx;
-          renderBoard();
-          // Simulate tracking event
-          console.log(`[TRACK] piece_select pos:${idx} phase:${gameState.phase}`);
-        }
-      } else {
-        // Move/Place action
-        if (!gameState.board[idx]) {
-          gameState.board[idx] = gameState.turn;
-          gameState.selectedIdx = null;
+      initNodes() {
+        const container = document.getElementById('board-nodes');
+        POSITIONS.forEach((pos, i) => {
+          const node = document.createElement('div');
+          node.className = `absolute w-[6%] h-[6%] -translate-x-1/2 -translate-y-1/2 cursor-pointer z-10 transition-all duration-300`;
+          node.style.left = `${pos.x}%`;
+          node.style.top = `${pos.y}%`;
+          node.onclick = () => this.handleNodeClick(i);
           
-          if (gameState.phase === 'PLACING') {
-            if (gameState.turn === 1) gameState.p1Left--; else gameState.p2Left--;
-            if ((gameState.turn === 1 && gameState.p1Left === 0) || (gameState.turn === 2 && gameState.p2Left === 0)) {
-              gameState.phase = 'MOVING';
-              phaseIndicator.classList.add('text-yellow-300');
-              setTimeout(() => phaseIndicator.classList.remove('text-yellow-300'), 1500);
+          const dot = document.createElement('div');
+          dot.className = 'w-full h-full rounded-full bg-slate-800/60 border border-slate-700 hover:bg-yellow-500/20 transition-colors node-hover';
+          node.appendChild(dot);
+          
+          container.appendChild(node);
+        });
+      }
+
+      handleNodeClick(idx) {
+        const log = document.getElementById('log-container');
+        
+        // Placement Phase Logic
+        if (this.phase === 'placement') {
+          if (this.board[idx] !== null || this.reserves[this.currentPlayer] <= 0) return;
+          
+          this.board[idx] = this.currentPlayer;
+          this.reserves[this.currentPlayer]--;
+          this.logAction(`[PLACE] ${this.currentPlayer} → Node ${idx}`);
+          
+          // Visual validation feedback (Confirmation Bias reinforcement)
+          this.animateNode(idx, 'glow-select');
+          this.updateUI();
+          return;
+        }
+
+        // Movement Phase Logic
+        if (this.phase === 'movement' || this.phase === 'flying') {
+          const isOwnPiece = this.board[idx] === this.currentPlayer;
+          
+          if (!isOwnPiece && this.selectedIdx !== null) {
+            // Move to empty spot
+            if (this.board[idx] === null) {
+              this.board[this.selectedIdx] = null;
+              this.board[idx] = this.currentPlayer;
+              this.logAction(`[MOVE] Node ${this.selectedIdx} → Node ${idx}`);
+              this.animateNode(this.selectedIdx, 'opacity-0');
+              this.animateNode(idx, 'selected-glow');
+              this.selectedIdx = null;
+            } else {
+              return; // Invalid target
             }
-          } else if (gameState.phase === 'REMOVE') {
-            // In a real implementation, opponent piece removal logic goes here
-            gameState.phase = 'MOVING';
+          } else if (isOwnPiece) {
+            this.selectedIdx = idx;
+            this.logAction(`[SELECT] Node ${idx} locked for movement.`);
           }
           
-          switchTurn();
-        } else {
-          // Deselect or change selection
-          gameState.selectedIdx = null;
+          this.updateUI();
         }
-        renderBoard();
+
+        // Trigger phase transition simulation after 6 moves each (MVP stub)
+        if (this.moveCount > 12 && this.phase === 'placement') {
+          this.setPhase('movement');
+        }
+      }
+
+      setPhase(newPhase) {
+        this.phase = newPhase;
+        const display = document.getElementById('phase-display');
+        display.innerText = `${newPhase.charAt(0).toUpperCase() + newPhase.slice(1)} • Fázis ${this.phase === 'placement' ? 1 : 2}/3`;
+        display.classList.remove('phase-flash');
+        void display.offsetWidth; // Trigger reflow
+        display.classList.add('phase-flash');
+        
+        document.querySelectorAll('.phase-btn').forEach(btn => {
+          btn.className = `phase-btn bg-slate-800/40 border-transparent text-slate-400 py-2 rounded-lg text-xs font-semibold tracking-wider hover:bg-slate-700/50 transition-all`;
+        });
+        
+        const activeBtn = Array.from(document.querySelectorAll('.phase-btn')).find(b => b.textContent.toLowerCase().includes(newPhase === 'placement' ? 'elhelyezés' : 'mozgatás'));
+        if(activeBtn) activeBtn.className = `phase-btn active bg-yellow-500/20 border-yellow-400/50 text-yellow-300 py-2 rounded-lg text-xs font-semibold tracking-wider hover:bg-yellow-500/30 transition-all`;
+
+        this.logAction(`[TRANSITION] Phase locked: ${newPhase.toUpperCase()}`);
+        this.updateUI();
+      }
+
+      animateNode(idx, className) {
+        const nodes = document.getElementById('board-nodes').children;
+        if(nodes[idx]) nodes[idx].classList.add(className);
+      }
+
+      logAction(msg) {
+        const log = document.getElementById('log-container');
+        const time = new Date().toLocaleTimeString('hu-HU', {hour12:false});
+        log.innerHTML += `<span class="text-slate-600">[${time}]</span> ${msg}<br>`;
+        log.scrollTop = log.scrollHeight;
+        
+        // Simulate metric drift based on engagement (Confirmation Bias Loop)
+        const ret = document.getElementById('metric-ret');
+        const dur = document.getElementById('metric-dur');
+        let curRet = parseFloat(ret.innerText);
+        if(Math.random() > 0.3) {
+          curRet += (Math.random() * 0.15).toFixed(2);
+          ret.innerText = `${curRet.toFixed(2)}%`;
+          document.getElementById('bar-ret').style.width = `${Math.min(curRet, 100)}%`;
+        }
+      }
+
+      updateUI() {
+        const nodes = document.getElementById('board-nodes').children;
+        Array.from(nodes).forEach((node, i) => {
+          node.querySelector('div').className = 'w-full h-full rounded-full border transition-all duration-300';
+          
+          if (this.board[i] === 'white') {
+            node.querySelector('div').classList.add('bg-white', 'shadow-[0_4px_12px_rgba(255,255,255,0.3)]');
+          } else if (this.board[i] === 'black') {
+            node.querySelector('div').classList.add('bg-slate-900', 'border-slate-600', 'shadow-[inset_0_-2px_4px_rgba(0,0,0,0.8)]');
+          } else {
+            node.querySelector('div').classList.add('bg-slate-800/60', 'border-slate-700');
+          }
+
+          if (this.selectedIdx === i) {
+            node.querySelector('div').classList.remove('bg-slate-800/60', 'border-slate-700');
+            node.querySelector('div').classList.add('selected-glow', 'ring-4', 'ring-yellow-400/50');
+          }
+        });
+
+        document.getElementById('white-reserve').innerText = `Kő: ${this.reserves.white}`;
+        document.getElementById('black-reserve').innerText = `Kő: ${this.reserves.black}`;
+        
+        const turnInd = document.getElementById('turn-indicator');
+        turnInd.innerHTML = `<span class="w-3 h-3 rounded-full ${this.currentPlayer === 'white' ? 'bg-white shadow-[0_0_10px_rgba(255,255,255,0.6)]' : 'bg-slate-900 border border-slate-600 shadow-[inset_0_-2px_4px_rgba(0,0,0,0.8)]'}"></span> ${this.currentPlayer === 'white' ? 'Fehér' : 'Fekete'} sor`;
       }
     }
 
-    function switchTurn() {
-      gameState.turn = gameState.turn === 1 ? 2 : 1;
-      updateUI();
-    }
-
-    // Mode Toggle Logic
-    document.getElementById('mode-single').addEventListener('click', () => setMode('SINGLE'));
-    document.getElementById('mode-multi').addEventListener('click', () => setMode('MULTI'));
-    document.getElementById('reset-btn').addEventListener('click', resetGame);
-
-    function setMode(mode) {
-      gameState.mode = mode;
-      const btnSingle = document.getElementById('mode-single');
-      const btnMulti = document.getElementById('mode-multi');
-      
-      if (mode === 'SINGLE') {
-        btnSingle.className = "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-300 bg-cyan-600 text-white shadow-[0_0_12px_rgba(8,145,178,0.4)]";
-        btnMulti.className = "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-300 hover:bg-slate-800 text-slate-400";
-        queueOverlay.classList.add('hidden');
-      } else {
-        btnSingle.className = "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-300 hover:bg-slate-800 text-slate-400";
-        btnMulti.className = "px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-300 bg-cyan-600 text-white shadow-[0_0_12px_rgba(8,145,178,0.4)]";
-        queueOverlay.classList.remove('hidden');
-        simulateQueue();
-      }
-    }
-
-    function simulateQueue() {
-      let t = 0;
-      const interval = setInterval(() => {
-        if (queueOverlay.classList.contains('hidden')) clearInterval(interval);
-        t += 0.1;
-        queueTimeEl.textContent = `t: ${t.toFixed(1)}s`;
-        if (t >= 4.2) { // Simulate timeout/fallback or connection
-          queueOverlay.classList.add('opacity-0');
-          setTimeout(() => queueOverlay.classList.add('hidden'), 300);
-          clearInterval(interval);
-        }
-      }, 100);
-    }
-
-    function resetGame() {
-      gameState = { mode: gameState.mode, turn: 1, phase: 'PLACING', board: Array(24).fill(null), p1Left: 9, p2Left: 9, selectedIdx: null };
-      renderBoard();
-      updateUI();
-    }
-
-    // Init
-    renderBoard();
-    updateUI();
+    // Initialize deterministic interface
+    const game = new MillGameUI();
   </script>
 </body>
 </html>
