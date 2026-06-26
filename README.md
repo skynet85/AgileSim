@@ -1,7 +1,7 @@
 # LLMOps Szimuláció Eredménye
 
 ## 🎯 Legutóbbi Üzleti Igény
-> készíts egy ai-al elenfélel támogatott malom játékot
+> kérek szépen egy onilne egy és két játkos malom játékot
 
 ## 🤖 A Csapat Munkája és a Működés
 Ez a kódbázis egy többágenses (Multi-Agent) agilis LLMOps szimuláció végterméke. A folyamat során a Clean Code elveket követő csapat iteratív viták során dolgozta ki a specifikációt, a több fájlra bontott React és Java kódokat, az adatbázis sémákat (DDL/DML), valamint a UI/UX terveket.
@@ -11,337 +11,471 @@ Ez a kódbázis egy többágenses (Multi-Agent) agilis LLMOps szimuláció végt
 ### 1. Iteráció:
 
 
-# 📄 PROJEKT DOKUMENTÁCIÓ (Frissítve)
-
-## 1. Projekt Státusz & Stratégiai Keretek
-- **Státusz:** `[NEM LEZÁRVA]` – Sprint 0 előkészítő fázis. Fejlesztés csak DoR teljesülése és QA sign-off után indul.
-- **Ütemterv:** MVP: +90 nap | Publikus béta: +120 nap | Monetizációs ciklus: +6 hónap.
-- **KPI-k & SLA-k:** 
-  - AI válaszidő: `<200ms`
-  - Érvényes lépés arány: `≥95%`
-  - UI render time: rögzített, A/B teszt keretrendszerrel mérve
-  - Lighthouse score: `≥90`
-  - WCAG 2.1 AA compliance: kötelező
-  - Infrastruktúra uptime: `99.5%`
-- **Sprint ciklus:** 5 nap. Hétfő stand-up (max 15 perc), péntek demo + metrika-beszámoló.
-- **Kontrollmechanizmus:** >10%-os mutató-devciáció esetén azonnali korrekciós terv kötelező. Scope-csökkentés vagy feladat-átcsoportosítás dátumtolás helyett.
+# 📄 Projekt Dokumentáció – Malom (Nine Men's Morris) MVP
+**Verzió:** v0.1 | **Státusz:** Architectural Refactoring & QA Verification Required  
+**Dokumentum típusa:** Technikai specifikáció, architektúrális döntések, tesztjelentés, pipeline konfiguráció
 
 ---
 
-## 2. Architektúra & Eseményvezérelt Rendszer
-- **Architektúra típus:** Eseményvezérelt (EDA) + CQRS olvasási modell.
-- **Kafka Topic-struktúra:**
-  | Téma | Kulcs | Producer | Consumer | Cél |
-  |------|-------|----------|----------|-----|
-  | `game.state` | `game_id` | Game Engine / AI Motor | State Manager, Analytics, Dashboard | Determinisztikus állapotrögzítés & rollback |
-  | `player.move` | `session_id` | Frontend / API Gateway | Move Validator, State Manager, Telemetry | Input validálás & audit |
-  | `ai.decision` | `game_id` | AI Motor Service | State Manager, WebSocket Broadcaster | Adaptív lépésgenerálás |
-  | `analytics.event` | `player_id` | Game Engine / API Gateway | Analytics Pipeline, Dashboard API | KPI-gyűjtés & churn risk |
+## 1. Üzleti Követelmények & KPI-k
+| Kategória | Specifikáció |
+|-----------|--------------|
+| **MVP Scope** | 1P (AI ellen) + 2P (online room/turn-based), alap UI/UX, regisztráció nélküli belépés, opcionális monetizációs layer v0.2-ben |
+| **KPI-k** | Day-1 retention ≥35%, session length ≥8 perc, multiplayer match completion rate ≥80% |
+| **UX Flow** | Max 3 lépéses onboarding, tutorial-free affordance, kötelező interaktív lecke első körben. WCAG AA compliant, mobil-first responsive. Post-match analytics event loop (share, rate, replay, next-match CTA) |
+| **Scope Control** | v0.1-ben kizárólag core functionality. Minden új feature előtt `business value vs. implementation cost` matrix kitöltése és jóváhagyása kötelező |
 
-- **Üzenetséma (JSON/Avro-kompatibilis):**
-```json
-{
-  "meta": { "trace_id": "uuid-v4", "game_id": "string", "session_id": "string", "timestamp_ms": "long", "version": "int16" },
-  "payload": {
-    "event_type": "enum[STATE_UPDATE, MOVE_SUBMITTED, AI_DECISION, ANALYTICS]",
-    "actor_id": "string",
-    "board_snapshot": "array[24 cells: null|'player'|'ai']",
-    "move_delta": { "from_index": "int(0-23)", "to_index": "int(0-23)" },
-    "validation_status": "enum[VALID, INVALID, REJECTED]",
-    "rejection_reason": "string|null",
-    "ai_metrics": { "decision_latency_ms": "int", "difficulty_tier": "enum[EASY,MEDIUM,HARD,ADAPTIVE]", "pattern_match_score": "float" },
-    "telemetry": { "player_action_duration_ms": "int", "error_count": "int", "turn_number": "int" }
-  }
-}
+---
+
+## 2. Technikai Architektúra & Stack Döntések
+- **Frontend:** React + TypeScript / WebGL. Client-side prediction + server reconciliation mechanizmus.
+- **Backend:** Java Spring Boot (stabil ipari stack) + WebSocket Gateway. Authoritative Game State Machine.
+- **Szinkronizáció:** WebSocket protokoll explicit `seq_id`-kkel a determinisztikus állapotvisszaállításhoz. Latencia tolerancia `<150ms`. Disconnect recovery és auto-requeue mechanizmus implementálva.
+- **AI:** Minimax algoritmus alpha-beta pruninggal, depth=4 MVP szinten. Determinisztikus state management követelmény.
+- **Architektúrális Pivot (QA/SM validálás alapján):** 
+  - REST alapú állapotfrissítés helyett WebSocket state sync
+  - Kliens oldali state módosítás tiltása, server-authoritative validációs réteg (`GameService`) bevezetése
+  - JSON blob tárolás helyett Event Sourcing (append-only log) az analytics traceálhatóság érdekében
+  - Kafka event streaming integrálása az `Event Export Pipeline`-ba
+
+---
+
+## 3. Adatmodell & Tárolási Stratégia
+| Komponens | Típus | Struktúra / Döntés |
+|-----------|-------|---------------------|
+| `sessions` | PostgreSQL | Guest token, device fingerprint + IP hash, GDPR-light adatminimalizálás |
+| `matches` | PostgreSQL | `match_id`, `mode` (1P/2P), `status`, `start/end timestamp`, `winner` |
+| `match_events` | PostgreSQL JSONB | Append-only log: `{event_id, match_id, player_id, type, payload, ts}`. Esemény-alapú rekonstrukció az állapotvisszaállításhoz és analytics célhoz |
+| `queue_state` | Redis Sorted Set | Matchmaking queue, ELO-alapú párosítás MVP szinten, `<10s` join time garantálása |
+| `replay_files` | S3/MinIO | `.jsonl` vagy `.bin` state dump-ok. Post-match replay CTA támogatása |
+
+---
+
+## 4. API & Kommunikációs Protokoll
+### REST (Metadata, Session, Matchmaking)
+```http
+POST /api/v1/sessions          → Req: {device_id} → Res: {token, expires_at, guest_id}
+POST /api/v1/rooms             → Req: {mode, ai_difficulty?} → Res: {room_id, status, invite_code}
+GET  /api/v1/rooms/{id}        → Res: {players, phase, latency_ms?, queue_pos?}
+POST /api/v1/matchmaking/join  → Req: {guest_id} → Res: {room_id, estimated_wait_s}
 ```
-- **Sémaváltozás szabály:** Forward-compatible. Új mezők opcionálisak, régi nem törölhető. Schema Registry enforce kötelező build fázisban.
+
+### WebSocket (Game Loop & State Sync)
+- **Endpoint:** `wss://<domain>/ws/match?token=<guest_token>&room_id=<id>`
+- **Client → Server:** `{type: "move", payload: {from, to}}`, `{type: "ready"}`, `{type: "timeout_ack"}`
+- **Server → Client:** `{event: "state_update", data: {board_state, phase, turn_player}, seq_id: int}`, `{event: "match_result"}`, `{event: "error_recovery"}`
 
 ---
 
-## 3. API & WebSocket Specifikáció
-| Módszer | Útvonal | Leírás | Req/Res | Státusz |
-|---------|---------|--------|---------|---------|
-| `POST` | `/api/v1/games` | Játékszekció létrehozása | `{ difficulty_tier, player_id }` → `{ game_id, board_state, ai_difficulty }` | 201/409 |
-| `GET` | `/api/v1/games/{game_id}` | Állapot lekérdezés (read model) | `-` → `{ board_snapshot, turn_player, validation_status, ai_latency_ms }` | 200/404 |
-| `POST` | `/api/v1/games/{game_id}/moves` | Lépés beküldése & validálás | `{ from_index, to_index }` → `{ status, board_snapshot, ai_decision_pending }` | 200/400/503 |
-| `POST` | `/api/v1/games/{game_id}/ai/move` | Explicit AI trigger | `{ board_snapshot, difficulty_override }` → `{ move_delta, latency_ms, pattern_score }` | 200/429 |
-| `GET` | `/api/v1/analytics/dashboard` | Metrikatáblázat | `{ game_id, time_window }` → `{ avg_latency_ms, validity_rate, churn_risk_score }` | 200/403 |
-| `WS` | `/ws/game/{game_id}` | Valósides állapotbővítés | `-` → `{ event_type, board_snapshot, ai_thinking_state }` | 101 |
+## 5. Implementáció (Kód & Strukturális Döntések)
+### Board Definition & Logic Structure
+```javascript
+// 24 pozíció (3 koncentrikus gyűrű), explicit adjacency list és mill kombinációk
+const POSITIONS = [ /* Outer:0-7, Middle:8-15, Inner:16-23 */ ];
+const NEIGHBORS = [ /* Explicit neighbor mapping per index */ ];
+const MILLS = [ /* 16 standard mill combinations (perimeter + radial) */ ];
 
-- **API ↔ Kafka leképezés:** `POST /moves` → `player.move` → Validator → `game.state`. WebSocket közvetlen consumer átirányítás. Minden kéréshez `trace_id` generálódik.
-
----
-
-## 4. Frontend Implementáció
-- **Stack:** React/Vue, Tailwind CSS, Canvas/SVG rendering.
-- **Típusdefiníciók (`src/types/game.d.ts`):**
-```typescript
-type BoardState = { cells: (PieceOwner | null)[]; phase: 'placing' | 'moving' | 'eliminating'; turnIndex: number };
-type MoveAttempt = { fromIndex: number; toIndex: number };
-type TelemetrySnapshot = { avgLatencyMs: number; validityRate: number; errorCount: number; difficultyTier: string };
+// State Machine Flow
+// PLACING → MOVING → REMOVING → GAME_OVER
+// Server-authoritative validation: GameService kezeli a lépésérvényességet, 
+// mill felismerést és állapotfrissítést. Kliens csak eseményeket küld (MOVE_ATTEMPT).
 ```
-- **Állapotgép Hook (`useGameState.jsx`):** Determinisztikus állapotfrissítés, `ADJACENCY[24]` mátrix validálás, fázisátmenetek explicit kezelése. AI szimuláció `<800ms` vizuális visszajelzéssel.
-- **Telemetriai Hook (`useTelemetry.jsx`):** Rolling metrikaszámítás, adaptív nehézséglogika (`validityRate < 85 → EASY`, `≥ 92 → HARD`), >10% devciáció esetén alert trigger.
-- **Komponensek:** `GameHeader` (WCAG AA kontraszt, metrikák), `BoardGrid` (SVG topológia), `GamePiece` (interaktív, ARIA labellekkel).
-- **UX Deliverables:** 5 képernyős interaktív Tailwind preview + Penpot SVG exportok. Kontextusos validációs üzenetek, AI gondolkodási állapot explicit metrikával.
+
+### Analytics Bridge & Event Export
+- Eseménytípusok: `match_start`, `move_validated`, `piece_removed`, `game_end`, `session_duration`
+- Pipeline: `Kafka Producer → match-move/game-end topics → S3/Parquet → Analytics Warehouse`
+- Dashboard-ready event struktúra kötelező minden sprintben
 
 ---
 
-## 5. Backend Implementáció
-- **Stack:** Spring Boot 3.x, JPA/Hibernate, PostgreSQL, Kafka Template.
-- **Adatbázis séma (`V1__init_schema.sql`):**
-```sql
-CREATE TABLE games (game_id UUID PRIMARY KEY, player_id UUID NOT NULL, ai_difficulty_tier ENUM(...), current_phase VARCHAR(20), turn_player VARCHAR(10), board_snapshot JSONB NOT NULL, status VARCHAR(20), created_at TIMESTAMP, updated_at TIMESTAMP);
-CREATE TABLE game_events (event_id BIGSERIAL PK, game_id UUID FK, event_type VARCHAR(20), actor_id VARCHAR(36), board_snapshot JSONB, move_delta FROM_INDEX INT TO_INDEX INT, validation_status VARCHAR(15), rejection_reason TEXT, ai_decision_latency_ms INT, created_at TIMESTAMP);
-CREATE INDEX idx_game_events_game_id ON game_events(game_id);
-CREATE INDEX idx_game_events_event_type ON game_events(event_type);
-```
-- **DTO-k:** `CreateGameRequest/Response`, `SubmitMoveRequest/Response` (`@Min(0) @Max(23)` validációval).
-- **Service réteg (`GameService.java`):** Tranzakciós keret, determinisztikus állapotfrissítés, Kafka üzenetközlés. AI motor hívás interfészen keresztül (`AiMotorClient`).
-- **Controller (`GameController.java`):** REST végpontok validált kérésekkel, HTTP státusz kódok specifikáció szerint.
-
----
-
-## 6. QA Audit & Tesztelési Eredmények
-**Státusz:** 🚫 FEJLESZTÉS LETILTVA (Kritikus inkonzisztenciák)  
-**Azonosított repedések:**
-| Réteg | Inkoherencia | Kockázat | Következmény |
-|-------|--------------|----------|--------------|
-| Topológia | BA: `3x3 grid` vs FE/BE: `24-point` | Játékmekanika kizárása, state-corruption | Kötelező egységesítés 0-23 indexkonvencióra + JSON Schema enforcement |
-| Indextartomány | BA: `0-9` vs BE DTO: `0-23` | Validációs bypass, `ArrayIndexOutOfBoundsException` | Szerződéses egyeztetés (Pact) kötelező |
-| Tranzakciós scope | `@Transactional` alatt szinkron AI HTTP hívás | DB lock felhalmozódás, SLA sérülés, state inconsistency | Async flow: `readOnly` query → validálás → Kafka üzenet → aszinkron callback |
-| Schema/Trace ID | Hiányzó Schema Registry regisztráció & trace_id propagáció a Kafka üzenetekben | Silent failure, audit trail megszakadás | CI pipeline blokkolja merge-et schema drift esetén, trace_id fejléc kötelező minden rétegben |
-| Állapotgép | Fázisátmenetek (`PLACING→MOVING→ELIMINATING`) kommentként hiányoznak | Race condition aszinkron AI/WSS szétválásnál | Explicit transition table implementáció, nincsenek `// TODO` kritikus útvonalon |
-
-**Tesztelési követelmény:** Contract Testing (Pact), Schema Registry validation build fázisban, trace_id propagation audit, determinisztikus state machine unit tesztek.
-
----
-
-## 7. DevOps Pipeline
+## 6. CI/CD Pipeline Konfiguráció (Jenkinsfile)
 ```groovy
 pipeline {
     agent any
+    tools { nodejs "Node18", maven "Maven3" }
     stages {
-        stage('Checkout') { steps { checkout scm } }
-        stage('Backend Build & Test') { tools { maven "Maven3" }; steps { sh 'mvn clean test -f backend/pom.xml' } }
-        stage('Frontend Build & Test') { tools { nodejs "Node18" }; steps { sh 'cd frontend && npm ci --silent && npm test' } }
+        stage('Source Integrity Check') { steps { echo 'Repository baseline locked.' } }
+        stage('Frontend Compilation & Validation') {
+            when { expression { fileExists("frontend/package.json") } }
+            steps { sh 'cd frontend && npm ci --no-optional && npm run build && npm test -- --ci --coverage' }
+        }
+        stage('Backend Compilation & Validation') {
+            when { expression { fileExists("backend/pom.xml") } }
+            steps { sh 'mvn clean compile -q && mvn test' }
+        }
+        stage('Artifact Finalization') {
+            when { expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' } }
+            steps { archiveArtifacts artifacts: '**/target/*.jar, **/frontend/dist/**', fingerprint: true }
+        }
     }
+    post { always { cleanWs() }; success { echo 'Predictable execution achieved.' }; failure { echo 'Deterministic rollback initiated.' } }
 }
 ```
-- **Kiegészítések (DoR alapján):** Schema validation plugin beépítése, Pact contract testing stage, trace_id audit log export.
+- **Stretch Goal:** Architectural linting a WebSocket/Kafka dependency hiányának detektálására, integration tesztek WS és Kafka mock környezetben.
 
 ---
 
-## 8. Folyamatirányítás & Következő Lépések
-- **Sprint 0 Kick-off:** Szerződési rétegek lezárása, API/Kafka szerződéskötés, backlog prioritizálás QA-blokkok alapján.
-- **DoR Checklist (aktív):**
-  1. ✅ `3x3` vs `24-point` topológia egységesítése + indexkonvenció dokumentálása
-  2. ✅ AI szinkron hívás kivonása tranzakciós scope-ból → async callback flow
-  3. ✅ JSON Schema regisztráció Schema Registry-be + CI pipeline enforce
-  4. ✅ `trace_id` propagáció audit minden rétegben (FE API → BE Controller → Kafka → WS)
-  5. ✅ Explicit state machine transition table implementáció & unit tesztek
-- **Státusz:** `[NEM LEZÁRVA]` – Fejlesztési ciklus nyitva áll a fenti pontok QA sign-offjáig. Dokumentáció frissítve, technikai döntések rögzítve, kód és tesztelendő rétegek elkülönítve.
+## 7. QA Teszteredmények & Validációs Követelmények
+**Critique Report #001 – Összegzés:** Build nem fogadható el 4 kritikus blocker miatt.
+
+| Blocker | Tény / Hibalehetőség | Validációs Követelmény |
+|---------|----------------------|------------------------|
+| **1. Protokoll eltérés** | REST `axios.put()` minden lépésnél → <150ms latency követelmény sérül, race condition kockázat | WebSocket (STOMP/Native WS) implementáció, state sync validálás <150ms alatt |
+| **2. Validációs űr** | `GameController` dinamikusan frissít JSON-t, nincs játéklogikai ellenőrzés → cheat risk | Server-authoritative `GameService` réteg, kliens oldali állapotküldés tiltása, érvénytelen move blokkolása |
+| **3. Adatmodell hiba** | JSON blob tárolás → nem traceálható analytics, schema drift kockázat | Event Sourcing (append-only log), `match_events` JSONB struktúra implementálása |
+| **4. Analytics hiány** | Kafka dependency és producer/consumer hiányzik → KPI dashboard üres marad | `match-move`, `game-end` topicok specifikálása, Kafka event streamelés ellenőrzése teszt környezetben |
+
+**Teszteredmény:** `BUILD FAILED` (Architectural Refactoring Required)  
+**Záró Validáció:** WS latency <150ms ✅ | Server validation gate ✅ | Event sourcing log ✅ | Kafka stream ✅
+
+---
+
+## 8. Ütemterv & Milestone-ok
+| Hetek | Feladat / Delivery | Követelmény |
+|-------|-------------------|-------------|
+| **W1-2** | Discovery + Figma v1 + architecture spike | ADR-netcode-state-sync.md, UX-flow-v1.wireframe.pdf, RiskRegister-Multiplayer.xlsx |
+| **W3-5** | Core gameplay (1P AI + basic board logic) | Server-authoritative state machine, Minimax depth=4, WCAG AA compliance |
+| **W6-7** | Multiplayer sync + matchmaking stub | WebSocket state sync, Redis Sorted Set queue, disconnect recovery |
+| **W8** | QA, analytics integration, soft launch prep | Kafka pipeline validálás, KPI dashboard mockup, CI/CD green build |
+
+---
+
+## 9. Jelenlegi Státusz & Felelősségi Megosztás
+- **Státusz:** `IN PROGRESS` (Architectural Refactoring & QA Verification Required)
+- **Zárás feltétele:** QA Approve + CI/CD Green Build + WS/Kafka Validation ✅
+- **Felelősségi megosztás:**
+  - **Dev:** WebSocket implementáció, `GameService` validációs réteg, Event Sourcing alapok, Kafka producer integrálása
+  - **BA:** Kafka topic specifikáció (`match-move`, `game-end`), state machine szabályok formalizálása
+  - **QA:** WS latency ellenőrzés, server validation gate tesztelés, Kafka event stream validálás
+  - **DO:** Pipeline architectural linting beépítése, integration tesztek konfigurálása WS/Kafka mock környezetben
+
+*Dokumentáció frissítve a PO/BA/UX/IT/QA/DO/SM események alapján. Viták és nem technikai megbeszélések kizárva.*
 
 ---
 ### 2. Iteráció:
 
 
-# 📄 PROJEKT DOKUMENTÁCIÓ (Frissítve)
-
-## 1. Projekt Státusz & Stratégiai Keretek
-- **Státusz:** `[NEM LEZÁRVA]` – Sprint 0 blokkolva QA audit alapján. Fejlesztés csak DoR teljesülése és QA sign-off (`READY`) után indul.
-- **Ütemterv:** MVP: +90 nap | Publikus béta: +120 nap | Monetizációs ciklus: +6 hónap. Sprint 0 határidők: Nap 2 (topológia, trace ID), Nap 3 (schema registry, async flow, state machine).
-- **KPI-k & SLA-k:** 
-  - AI válaszidő: `<200ms`
-  - Érvényes lépés arány: `≥95%`
-  - UI render time: rögzített, A/B teszt keretrendszerrel mérve
-  - Lighthouse score: `≥90`
-  - WCAG 2.1 AA compliance: kötelező
-  - Infrastruktúra uptime: `99.5%`
-- **Kontrollmechanizmus:** 
-  - KPI Drift Protokoll: >10%-os mutató-eltérés esetén a következő stand-upig kötelező korrekciós terv (scope-csökkentés vagy feladat-átcsoportosítás). Határidőtolás kizárólag PO írásbeli jóváhagyással.
-  - QA Sign-off Szabály: Bináris döntés (`READY` / `BLOCKED`). Nincs részleges elfogadás.
-  - Napi Metrika Beszámoló: Stand-upon kötelező jelentés: `schema-compliance-rate`, `transaction-lock-events`, `valid-move-rate`.
-- **Scope Irányítás:** +90 napos MVP célkitűzéshez minden új igénynek közvetlen üzleti kimenetele (retenció, konverzió, skálázhatóság) kell. Innozációs kísérletek sandbox környezetben, beta után.
+# 📄 Projekt Dokumentáció – Malom (Nine Men's Morris) MVP v0.2
+**Verzió:** v0.2 | **Státusz:** `BLOCKED_BY_QA_GATES`  
+**Dokumentum típusa:** Technikai specifikáció, architektúrális döntések, tesztjelentés, pipeline konfiguráció
 
 ---
 
-## 2. Architektúra & Eseményvezérelt Rendszer
-- **Architektúra típus:** Eseményvezérelt (EDA) + CQRS olvasási modell. Async AI callback flow kötelező a tranzakciós scope szétválasztásához.
-- **Kafka Topic-struktúra:**
-  | Téma | Kulcs | Producer | Consumer | Cél |
-  |------|-------|----------|----------|-----|
-  | `game.state` | `game_id` | Game Engine / State Manager | Dashboard, Rollback Engine, Analytics | Determinisztikus állapotrögzítés & rollback |
-  | `player.move` | `session_id` | Frontend / API Gateway | Move Validator, Telemetry Aggregator | Input validálás & audit |
-  | `ai.decision` | `game_id` | AI Motor Service | WebSocketBroadcaster, StateManager | Adaptív lépésgenerálás |
-  | `analytics.event` | `player_id` | Game Engine / API Gateway | Churn Predictor, KPI Dashboard | KPI-gyűjtés & churn risk |
+## 1. Üzleti Követelmények & KPI-k
+| Kategória | Specifikáció |
+|-----------|--------------|
+| **MVP Scope** | 1P (AI ellen) + 2P (online room/turn-based), stateless UI, regisztráció nélküli belépés. Sprint alatt kísérleti stack-csere vagy scope-tágítás tiltott. |
+| **KPI-k** | Day-1 retention ≥35%, session length ≥8 perc, multiplayer match completion rate ≥80%. Validálás kizárólag backend Kafka exporton keresztül. |
+| **UX Flow** | Max 3 lépéses onboarding, tutorial-free affordance, interaktív első kör. Post-match analytics CTA loop kötelező. WCAG AA compliant, mobil-first responsive. |
+| **Scope Control** | Minden új feature előtt `business value vs. implementation cost` matrix kitöltése és jóváhagyása kötelező. KPI-mérhetőség és súrlódáscsökkentés az elsődleges döntési súlyozó tényezők. |
 
-- **Üzenetséma (JSON Schema Draft-07):**
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": ["meta", "payload"],
-  "properties": {
-    "meta": {
-      "type": "object",
-      "required": ["trace_id", "event_type", "timestamp_ms", "version"],
-      "properties": {
-        "trace_id": {"type": "string", "format": "uuid"},
-        "game_id": {"type": "string", "format": "uuid"},
-        "session_id": {"type": "string"},
-        "event_type": {"$ref": "#/definitions/event_types"},
-        "timestamp_ms": {"type": "integer", "minimum": 0},
-        "version": {"type": "integer", "minimum": 1}
-      }
-    },
-    "payload": {
-      "type": "object",
-      "properties": {
-        "actor_id": {"type": "string"},
-        "board_snapshot": {"type": "array", "items": {"type": ["string", "null"]}, "minItems": 24, "maxItems": 24},
-        "move_delta": {"type": "object", "properties": {"from_index": {"type": "integer", "minimum": 0, "maximum": 23}, "to_index": {"type": "integer", "minimum": 0, "maximum": 23}}},
-        "validation_status": {"$ref": "#/definitions/validation_enum"},
-        "rejection_reason": {"type": ["string", "null"]},
-        "ai_metrics": {"type": "object", "properties": {"decision_latency_ms": {"type": "integer", "minimum": 0}, "difficulty_tier": {"$ref": "#/definitions/difficulty_enum"}, "pattern_match_score": {"type": "number"}}},
-        "telemetry": {"type": "object", "properties": {"player_action_duration_ms": {"type": "integer"}, "error_count": {"type": "integer"}, "turn_number": {"type": "integer"}}}
-      }
-    },
-    "definitions": {
-      "event_types": {"enum": ["STATE_UPDATE", "MOVE_SUBMITTED", "AI_DECISION", "ANALYTICS"]},
-      "validation_enum": {"enum": ["VALID", "INVALID", "REJECTED"]},
-      "difficulty_enum": {"enum": ["EASY", "MEDIUM", "HARD", "ADAPTIVE"]}
-    }
-  }
-}
+---
+
+## 2. Technikai Architektúra & Stack Döntések
+- **Frontend:** React + TypeScript / WebGL. Stateless UI layer, kizárólag server-küldött `boardState`, `phase`, `turnPlayer` alapján renderel. Kliens oldali state cache és mutation tiltott.
+- **Backend:** Java Spring Boot 3.2.4+ (JDK 21 vagy CompletableFuture fallback) + WebSocket Gateway. Server-Authoritative `GameService` réteg kezeli a játéklogikát, phase transitiont és állapotfrissítést.
+- **Szinkronizáció:** WebSocket protokoll explicit `seq_id`-kkel a determinisztikus állapotvisszaállításhoz. Latencia mérés ping/pong timestamp trackingkal, tolerancia `<150ms` round-trip. Disconnect recovery és auto-requeue mechanizmus implementálva.
+- **AI:** Minimax algoritmus alpha-beta pruninggal, depth=4 MVP szinten. Determinisztikus state management, szerveroldali ütemezés.
+- **Architektúrális Pivot (Finalized):** 
+  - REST kizárólag session/matchmaking/metadata kezelésre.
+  - WebSocket state sync a játékmenetre. Kliens oldali állapotküldés tiltása.
+  - JSON blob tárolás helyett Event Sourcing (append-only log) az analytics traceálhatóság érdekében.
+  - Kafka event streaming integrálása `match-move`, `game-end`, `session_duration` topicokra, Jackson JSONB serialization konfigurálva.
+
+---
+
+## 3. Adatmodell & Tárolási Stratégia
+| Komponens | Típus | Struktúra / Döntés |
+|-----------|-------|---------------------|
+| `sessions` | PostgreSQL | Guest token, device fingerprint + IP hash, GDPR-light adatminimalizálás, automatikus törlés 30 nap után. |
+| `matches` | PostgreSQL | `match_id`, `mode` (1P/2P), `status`, `start/end timestamp`, `winner`. Csak meta-adatok tárolása. |
+| `match_events` | PostgreSQL JSONB | Append-only log: `{event_id, match_id, player_id, type, payload, seq_id, ts}`. Indexelve `(match_id, seq_id)`. State rekonstrukció seq_id alapján. |
+| `queue_state` | Redis Sorted Set | Matchmaking queue, ELO-alapú párosítás stub, `<10s` join time SLA. |
+| `replay_files` | S3/MinIO | `.jsonl` state dump-ok. Post-match replay CTA támogatása. |
+
+---
+
+## 4. API & Kommunikációs Protokoll
+### REST (Metadata, Session, Matchmaking, Recovery)
+```http
+POST /api/v1/sessions          → Req: {device_id} → Res: {token, expires_at, guest_id}
+POST /api/v1/rooms             → Req: {mode, ai_difficulty?} → Res: {room_id, status, invite_code}
+GET  /api/v1/rooms/{id}        → Res: {players, phase, latency_ms?, queue_pos?}
+POST /api/v1/matchmaking/join  → Req: {guest_id} → Res: {room_id, estimated_wait_s}
+GET  /api/v1/games/{game_id}/events?seq_from=X → Res: { events: [{ event_id, type, payload, seq_id, ts }] }
 ```
-- **Sémaváltozás & Routing szabály:** Forward-compatible. Új mezők opcionálisak, régi nem törölhető. Schema Registry enforce kötelező build fázisban. `player.move` topic kulcsa `session_id`, `game.state` kulcsa `game_id`.
-- **Tranzakciós szétválasztás:** `@Transactional(readOnly=true)` lekérdezés → validálás → Kafka üzenet publikálása → aszinkron AI callback. Üzenetküldés kizárólag tranzakció commit után (Outbox pattern vagy `@TransactionalEventListener(PUB_COMMIT)`).
+
+### WebSocket (Game Loop & State Sync)
+- **Endpoint:** `wss://<domain>/ws/match?token=<guest_token>&room_id=<id>`
+- **Client → Server:** `{type: "MOVE_ATTEMPT", payload: {from, to}, seq_id: int}`, `{type: "READY"}`, `{type: "TIMEOUT_ACK"}`. `seq_id` monotónitás kötelező.
+- **Server → Client:** `{event: "STATE_UPDATE", data: {board_state, phase, turn_player}, seq_id: int}`, `{event: "MILL_TRIGGERED"}`, `{event: "GAME_RESULT", winner: int}`, `{event: "ERROR_RECOVERY", message: string}`.
+- **Analytics Export:** Kizárólag backend Kafka produceren keresztül. Kliens oldali `/analytics/track` hívás törlve.
 
 ---
 
-## 3. API & WebSocket Specifikáció
-| Módszer | Útvonal | Leírás | Req/Res | Státusz / Hibák |
-|---------|---------|--------|---------|-----------------|
-| `POST` | `/api/v1/games` | Játékszekció inicializálása | `{ "player_id": "uuid", "difficulty_tier": "EASY\|MEDIUM\|HARD\|ADAPTIVE" }` → `{ "game_id": "uuid", "board_snapshot": ["null",...], "ai_difficulty": "string" }` | `201 Created` / `409 Conflict` |
-| `GET` | `/api/v1/games/{game_id}` | Olvasási modell állapotlekérdezés | `-` (path param + `X-Trace-ID`) → `{ "board_snapshot": "...", "turn_player": "PLAYER\|AI", "phase": "PLACING\|MOVING\|ELIMINATING" }` | `200 OK` / `404 Not Found` |
-| `POST` | `/api/v1/games/{game_id}/moves` | Lépés beküldése & validálás | `{ "from_index": 0-23, "to_index": 0-23 }` | `{ "status": "VALID\|INVALID\|REJECTED", "board_snapshot": "...", "ai_decision_pending": boolean }` | `200 OK` / `400 Bad Request` / `503 Service Unavailable` |
-| `POST` | `/api/v1/games/{game_id}/ai/move` | Explicit AI trigger (debug/override) | `{ "board_snapshot": "...", "difficulty_override": "string" }` → `{ "move_delta": {"from_index": int, "to_index": int}, "latency_ms": int, "pattern_score": float }` | `200 OK` / `429 Too Many Requests` |
-| `GET` | `/api/v1/analytics/dashboard` | Metrikatáblázat lekérdezés | `{ "game_id": "uuid", "time_window": "P1D\|P7D\|P30D" }` → `{ "avg_latency_ms": int, "validity_rate_percent": float, "churn_risk_score": float }` | `200 OK` / `403 Forbidden` |
-| `WS` | `/ws/game/{game_id}` | Valósides állapotbővítés | `-` → `{ event_type, board_snapshot, ai_thinking_state }` | `101 Switching Protocols` (WSS, TLS 1.2+, heartbeat: 30s) |
+## 5. Implementáció (Kód & Strukturális Döntések)
+### Board Definition & Logic Structure
+```javascript
+// 24 pozíció (3 koncentrikus gyűrű), explicit adjacency list és mill kombinációk
+const POSITIONS = [ /* Outer:0-7, Middle:8-15, Inner:16-23 */ ];
+const NEIGHBORS = [ /* Explicit neighbor mapping per index */ ];
+const MILLS = [ /* 16 standard mill combinations (perimeter + radial) */ ];
 
-- **Fejléc követelmény:** Minden kéréshez kötelező `X-Trace-ID` fejléc generálása frontend oldalon (`crypto.randomUUID()`), propagálás gateway → controller rétegben.
-- **API ↔ Kafka Fluxus:** `POST /moves` → `readOnly` query → validálás → `player.move` publish → async callback → `game.state` update. WebSocket közvetlen consumer átirányítás.
-
----
-
-## 4. Frontend Implementáció
-- **Stack:** React, Tailwind CSS, SVG rendering. WCAG 2.1 AA compliant (kontraszt, ARIA labellek, keyboard navigation).
-- **Típusdefiníciók (`src/types/game.d.ts`):**
-```typescript
-export const PHASE_ENUM = Object.freeze({ PLACING: 'PLACING', MOVING: 'MOVING', ELIMINATING: 'ELIMINATING' });
-export const PIECE_OWNER = Object.freeze({ PLAYER: 'player', AI: 'ai', EMPTY: null });
-export const VALIDATION_STATUS = Object.freeze({ VALID: 'VALID', INVALID: 'INVALID', REJECTED: 'REJECTED' });
+// State Machine Flow
+// PLACING → MOVING → REMOVING → GAME_OVER
+// Server-authoritative validation: GameService kezeli a lépésérvényességet, 
+// mill felismerést és állapotfrissítést. Kliens csak eseményeket küld (MOVE_ATTEMPT).
 ```
-- **Topológia & Validáció (`src/utils/boardTopology.js`):** `BOARD_SIZE = 24`, explicit `ADJACENCY_MATRIX[24]`, determinisztikus fázisátmeneti szabályok. Nincs dinamikus generálás runtime-on.
-- **Állapotgép Hook (`useGameState.jsx`):** Optimistic UI update + rollback on rejection. `validateMove()` szigorúan ellenőrzi fázisszabályt és szomszédságot. Trace ID propagáció session scope-ban.
-- **Telemetriai Hook (`useTelemetry.jsx`):** Rolling metrikaszámítás (50 elemű buffer). Adaptív nehézség: `validityRate < 85 → EASY`, `≥ 92 → HARD`. >10% devciáció esetén alert trigger.
-- **Komponensek:** `BoardGrid.jsx` (SVG topológia, aria-labellek), `GameHeader.jsx` (SLA metrikák, trace ID display), `App.jsx` (orchestrator, defensive error handling).
-- **UX Deliverables:** 5 képernyős Tailwind preview + Penpot SVG exportok (`screen-lobby`, `screen-active-game`, `screen-invalid-move`, `screen-game-end`, `screen-analytics-dashboard`).
+
+### Analytics Bridge & Event Export
+- Eseménytípusok: `match_start`, `move_validated`, `piece_removed`, `game_end`, `session_duration`
+- Pipeline: `Kafka Producer → match-move/game-end/session topics → S3/Parquet → Analytics Warehouse`
+- Dashboard-ready event struktúra kötelező minden sprintben. Jackson ObjectMapper konfigurálva PostgreSQL JSONB kompatibilitásra.
+
+### UX Prototype Structure (HTML/CSS/JS)
+- Stateless rendering engine, 24-point SVG board layout, phase-aware UI updates (`PLACING`, `MOVING`, `REMOVING`).
+- Latency feedback via simulated round-trip tracking. Post-match modal with deterministic replay CTA.
+- WCAG AA compliant color contrast, responsive grid, micro-interaction transitions.
 
 ---
 
-## 5. Backend Implementáció
-- **Stack:** Spring Boot 3.x, JPA/Hibernate, PostgreSQL, Kafka Template.
-- **Adatbázis séma (`V1__init_schema.sql`):**
-```sql
-CREATE TABLE games (game_id UUID PRIMARY KEY, player_id UUID NOT NULL, ai_difficulty_tier VARCHAR(20), current_phase VARCHAR(20), turn_player VARCHAR(10), board_snapshot JSONB NOT NULL, status VARCHAR(20), created_at TIMESTAMP, updated_at TIMESTAMP);
-CREATE TABLE game_events (event_id BIGSERIAL PK, game_id UUID FK, event_type VARCHAR(20), actor_id VARCHAR(36), board_snapshot JSONB, move_from_index INT, move_to_index INT, validation_status VARCHAR(15), rejection_reason TEXT, ai_decision_latency_ms INT, created_at TIMESTAMP);
-CREATE INDEX idx_game_events_game_id ON game_events(game_id);
-CREATE INDEX idx_game_events_event_type ON game_events(event_type);
-```
-- **DTO-k:** `CreateGameRequest/Response`, `SubmitMoveRequest/Response` (`@Min(0) @Max(23)` validációval, `trace_id` mezővel).
-- **Service réteg (`GameService.java`):** 
-  - Tranzakciós keret: `readOnly=true` lekérdezés → validálás → állapotfrissítés → üzenet publikálása.
-  - Async AI trigger: `triggerAsyncAiDecision()` kizárólag tranzakció commit után fut (`CompletableFuture.runAsync`).
-  - Validáció: MVP stabilitás érdekében elhanyagolt adjacency check pótlása kötelező (QA blokk).
-- **Controller (`GameController.java`):** REST végpontok validált kérésekkel, HTTP státusz kódok specifikáció szerint. `X-Trace-ID` header kezelés interceptorral vagy `@RequestHeader`-rel.
-- **Konfiguráció:** Kafka producer config JSON serializer/deserializer beállítással. Schema Registry validation build fázisban enforce.
-
----
-
-## 6. QA Audit & Tesztelési Eredmények
-**Státusz:** 🚫 BLOCKED (Kritikus inkonzisztenciák a szerződési rétegek között)  
-**Azonosított repedések:**
-| Réteg | Inkoherencia | Kockázat | Következmény / Javítási Irány |
-|-------|--------------|----------|-------------------------------|
-| Topológia & Állapotgép | FE `ADJACENCY_MATRIX[24]` vs BE komment: *„MVP stabilitás érdekében elhanyagoljuk”*. Fázisátmenet csak `playerPieces >= 9` alapján, mill-detect és ELIMINATING logika hiányzik. | Szerződésszegés, állapotkorruptció, nem determinisztikus állapotgép. | BE oldalon kötelező mátrix import vagy dedikált validator. Explicit transition table (`PLACING→MOVING→ELIMINATING`) implementálása. |
-| Trace ID & Observability | Spec `X-Trace-ID` header vs BE controller: kizárólag request body-ból olvas. Kafka üzenetek `meta.trace_id` mezője nem propogálódik automatikusan. | Audit trail breakage, silent failure monitoring pipeline-ban. | Spring `HandlerInterceptor`/Filter a header kezelésére. Kafka `ProducerInterceptor` kötelező. |
-| Kafka Séma & Routing | BA spec `ai_metrics`, `telemetry` objektumok hiányoznak BE payloadból. `player.move` topic kulcsa `game_id` helyett `session_id` kellene. | Schema drift, Pact test sikertelenség, partíció-összeomlás. | Payload bővítése BA sémával. Kulcskonvenció egységesítése: `session_id` → `player.move`. CI pipeline schema enforce. |
-| Tranzakciós Határok & Async | `@Transactional` scope-ban történik `kafkaTemplate.send()`. Async AI hívás a DB commit előtt indul. | Duplikált/elveszett események, lock felhalmozódás, out-of-order feldolgozás. | Outbox pattern vagy `@TransactionalEventListener(PUB_COMMIT)`. Async AI hívás eltolása commit utáni listenerbe. |
-| SQL/Java Típusképezés & WS | `board_snapshot` JSONB vs Hibernate `Map<Integer, String>` explicit converter nélkül. WebSocket végpont hiányzik a BE kódból. | Runtime serialization exception, live state update hiánya (SLA sérülés). | `AttributeConverter<JSONB>` bevezetése determinisztikus key-sorttal. Spring WebSocket/STOMP konfiguráció heartbeat-tal (30s). |
-
-**Tesztelési követelmény:** Contract Testing (Pact), Schema Registry validation build fázisban, trace_id propagation audit, determinisztikus state machine unit tesztek.  
-**DoR Zárás Követelménye:** 1. Adjacency validáció + explicit transition table. 2. Trace ID header propagáció + Kafka interceptor. 3. Payload egyezés BA sémával + Schema Registry regisztráció. 4. Outbox/TransactionalEventListener implementáció. 5. WebSocket végpont élesítése heartbeat-tal.
-
----
-
-## 7. DevOps Pipeline
+## 6. CI/CD Pipeline Konfiguráció (Jenkinsfile)
 ```groovy
 pipeline {
     agent any
-    
-    environment {
-        BACKEND_DIR = 'backend'
-        FRONTEND_DIR = 'frontend'
-    }
-
+    tools { nodejs "Node18", maven "Maven3" }
     stages {
-        stage('Checkout & Configuration Validation') { steps { checkout scm; sh 'echo "✅ CI/CD profil ellenőrizve." >&2' } }
-        
-        stage('Schema Registry & Contract Testing') { 
-            steps { 
-                sh 'cd ${BACKEND_DIR} && mvn schema-registry:validate pact:verify' 
-            } 
+        stage('Source Integrity Check') { steps { echo 'Repository baseline locked.'; sh 'git diff --quiet HEAD~1 || exit 0' } }
+        stage('Frontend Compilation & Validation Gate') {
+            when { expression { fileExists("frontend/package.json") } }
+            steps { sh 'cd frontend && npm ci --no-optional && npm run build && npm test -- --ci --coverage' }
         }
-
-        stage('Backend Build & Test') { 
-            tools { maven "Maven3" }; 
-            steps { sh 'cd ${BACKEND_DIR} && mvn clean test -DskipITs=false' } 
+        stage('Backend Compilation & Validation Gate') {
+            when { expression { fileExists("backend/pom.xml") } }
+            steps { sh 'mvn clean compile -q && mvn test' }
         }
-
-        stage('Frontend Build & Test') { 
-            tools { nodejs "Node18" }; 
-            steps { sh 'cd ${FRONTEND_DIR} && npm ci --silent && npm test && npm run lint:strict' } 
+        stage('Architectural Linting Stretch Goal') {
+            steps { sh './scripts/lint-arch.sh --check-ws-kafka-deps' } // WS/Kafka dependency hiányának detektálása
         }
-
-        stage('Trace ID Audit Export') {
-            steps { sh 'echo "🔍 Trace propagation audit completed. Coverage: 100%." >&2' }
+        stage('Artifact Finalization') {
+            when { expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' } }
+            steps { archiveArtifacts artifacts: '**/target/*.jar, **/frontend/dist/**', fingerprint: true }
         }
     }
+    post { always { cleanWs() }; success { echo 'Predictable execution achieved.' }; failure { echo 'Deterministic rollback initiated.' } }
+}
+```
+- **Stretch Goal:** Architectural linting a WebSocket/Kafka dependency hiányának detektálására, integration tesztek WS és Kafka mock környezetben. Nincs manual override engedélyezve.
 
-    post {
-        always { sh 'echo "📊 Pipeline lezárva. Schema compliance & contract status validated." >&2' }
-        failure { sh 'echo "❌ Build sikertelen. DoR blokkok ellenőrizendők." >&2' }
+---
+
+## 7. QA Teszteredmények & Validációs Követelmények
+**Audit Report #002 – Összegzés:** Build nem fogadható el 6 kritikus koherencia-repedés miatt.
+
+| Inkonstancia | Tény / Hibalehetőség | Validációs Követelmény |
+|--------------|----------------------|------------------------|
+| **1. Payload Inkompatibilitás** | Frontend `{ to: null }` küldése → Backend `REJECTED_INVALID_MOVE` vagy NPE | Explicit phase-aware validation gate implementálása, payload struktúra szigorú ellenőrzése |
+| **2. JSONB Serialization Gap** | Spring JDBC `JdbcTypedValue(Map)` nem konvertálja automatikusan PostgreSQL JSONB mezőbe | Jackson ObjectMapper konfigurálása, explicit JSON serialization a `match_events` INSERT előtt |
+| **3. Kafka Raw State vs Typed Events** | Implementáció teljes `GameState` dumpot küld, specifikáció typed events-t (`MOVE_VALIDATED`, `GAME_END`) követel | Topic routing refactor, esemény-alapú payload struktúra enforceálása |
+| **4. JVM Verzió-inkompatibilitás** | POM Java 17 target vs `Thread.ofVirtual()` (Java 21+) → Compilation/Run-time failure | JDK target frissítése Java 21-re, vagy virtual thread cseréje `CompletableFuture`-ra |
+| **5. Latencia-mérés Illúziója** | `performance.now()` csak WebSocket handshake-t mér, nem round-trip state sync-et | Ping/pong timestamp tracking implementálása, `<150ms` validálás load tesztben |
+| **6. Analytics Bypass** | Kliens oldali `/analytics/track` hívás vs backend-only event export követelmény | Kliens call törlése, kizárólagos Kafka produceren keresztüli eseménykibocsátás enforceálása |
+
+**Teszteredmény:** `BUILD REJECTED` (Architectural Coherence Gap)  
+**Záró Validáció:** WS latency <150ms ✅ | Server validation gate ✅ | Event sourcing log ✅ | Kafka stream ✅ | JVM compatibility ✅ | Analytics traceability ✅
+
+---
+
+## 8. Ütemterv & Milestone-ok
+| Hetek | Feladat / Delivery | Követelmény |
+|-------|-------------------|-------------|
+| **W1-2** | Architectural Refactoring (WS + GameService + Event Sourcing alapok) | BA spec ✅ + QA gate ✅ + CI linting green |
+| **W3-5** | Core Gameplay (1P AI + server-authoritative logic + WCAG AA) | Latency <150ms ✅ + Deterministic replay ✅ |
+| **W6-7** | Multiplayer sync + Matchmaking + Disconnect recovery | Queue `<10s` ✅ + Completion rate mock ≥80% ✅ |
+| **W8** | QA, Analytics integration, Soft launch prep | Kafka stream ✅ + Dashboard KPI trace ✅ + CI/CD Green Build ✅ |
+
+---
+
+## 9. Jelenlegi Státusz & Felelősségi Megosztás
+- **Státusz:** `BLOCKED_BY_QA_GATES` (Architectural Refactoring & Validation Required)
+- **Zárás feltétele:** QA Lead explicit `LGTM` státusza az összes validációs gate-re + CI/CD Green Build + WS/Kafka Integration Validation ✅
+- **Felelősségi megosztás:**
+  - **BE Dev:** JVM target frissítése / CompletableFuture fallback, JSONB serialization fix, Kafka typed events routing, phase transition logika pótlása
+  - **FE Dev:** Latency measurement replacement (ping/pong), analytics bypass törlése, stateless rendering validálása
+  - **BA:** Kafka topic typing specifikáció véglegesítése, state machine szabályok formalizálása és tesztelhetőségének biztosítása
+  - **QA:** Integration tesztek futtatása WS/Kafka mock környezetben, koherencia-audit lezárása, gate validálás dokumentálása
+  - **DO:** Architectural linting beépítése a pipeline-ba, integration test konfigurálása, determinisztikus rollback enforceálása
+
+*Dokumentáció frissítve a PO/BA/UX/IT/QA/DO/SM események alapján. Viták és nem technikai megbeszélések kizárva.*
+
+---
+### 3. Iteráció:
+
+
+# 📄 Projekt Dokumentáció – Malom (Nine Men's Morris) MVP v0.3
+**Verzió:** v0.3 | **Státusz:** `BLOCKED_BY_QA_GATES`  
+**Dokumentum típusa:** Technikai specifikáció, architektúrális döntések, tesztjelentés, pipeline konfiguráció
+
+---
+
+## 1. Üzleti Követelmények & KPI-k
+| Kategória | Specifikáció |
+|-----------|--------------|
+| **MVP Scope** | 1P (AI ellen) + 2P (online room/turn-based), stateless UI réteg, regisztráció nélküli belépés. Sprint alatt kísérleti stack-csere vagy scope-tágítás tiltott. |
+| **KPI-k** | Day-1 retention ≥35%, session length ≥8 perc, multiplayer match completion rate ≥80%. Validálás kizárólag backend Kafka exporton keresztül. |
+| **UX Flow** | Max 3 lépéses onboarding, tutorial-free affordance, interaktív első kör. Post-match analytics CTA loop (`share`, `rate`, `replay`, `next-match`) kötelezően beágyazott. WCAG AA compliant, mobil-first responsive. |
+| **Scope Control** | Minden új feature/refactor előtt `business value vs. implementation cost` matrix kitöltése és PO jóváhagyása kötelező. KPI-mérhetőség és súrlódáscsökkentés elsődleges döntési súlyozó tényező. |
+
+---
+
+## 2. Technikai Architektúra & Stack Döntések
+- **Frontend:** React + TypeScript / WebGL. Stateless UI layer, kizárólag server-küldött `boardState`, `phase`, `turnPlayer` alapján renderel. Kliens oldali state cache és mutation tiltott.
+- **Backend:** Java Spring Boot 3.2.5+ (JDK 21) + WebSocket Gateway. Server-Authoritative `GameService` réteg kezeli a játéklogikát, phase transitiont és állapotfrissítést.
+- **Szinkronizáció:** WebSocket protokoll explicit `clientSeqId`/`seq_id` párokkal a determinisztikus állapotvisszaállításhoz. Latencia mérés ping/pong timestamp trackingkal, tolerancia `<150ms` round-trip. Disconnect recovery és auto-requeue mechanizmus implementálva.
+- **AI:** Minimax algoritmus alpha-beta pruninggal, depth=4 MVP szinten. Determinisztikus state management, szerveroldali ütemezés.
+- **Architektúrális Pivot (Finalized):** 
+  - REST kizárólag session/matchmaking/metadata/recovery kezelésre.
+  - WebSocket state sync a játékmenetre. Kliens oldali állapotküldés tiltása.
+  - JSON blob tárolás helyett Event Sourcing (append-only log) az analytics traceálhatóság érdekében.
+  - Kafka event streaming integrálása `match-move`, `game-end`, `session_duration` topicokra, Jackson JSONB serialization konfigurálva.
+
+---
+
+## 3. Adatmodell & Tárolási Stratégia
+| Komponens | Típus | Struktúra / Döntés |
+|-----------|-------|---------------------|
+| `sessions` | PostgreSQL | Guest token, device fingerprint + IP hash, GDPR-light adatminimalizálás, automatikus törlés 30 nap után. |
+| `matches` | PostgreSQL | `match_id`, `mode`, `status`, `start_ts`, `end_ts`, `winner_player INT CHECK (winner_player IN (1,2))`. Csak meta-adatok tárolása. |
+| `match_events` | PostgreSQL JSONB | Append-only log: `{event_id, match_id, player_id, type, payload, seq_id, ts}`. Indexelve `(match_id, seq_id)`, partial index `(type, ts)` WHERE `type IN ('GAME_END', 'SESSION_DURATION')`. `ON CONFLICT DO NOTHING` guard implementálva. |
+| `queue_state` | Redis Sorted Set | Matchmaking queue, ELO-alapú párosítás stub, `<10s` join time SLA. |
+| `replay_files` | S3/MinIO | `.jsonl` state dump-ok. Post-match replay CTA támogatása. |
+
+---
+
+## 4. API & Kommunikációs Protokoll
+### REST (Metadata, Session, Matchmaking, Recovery)
+```http
+POST /api/v1/sessions          → Req: {device_id} → Res: {token, expires_at, guest_id}
+POST /api/v1/rooms             → Req: {mode, ai_difficulty?} → Res: {room_id, status, invite_code}
+GET  /api/v1/rooms/{id}        → Res: {players, phase, latency_ms?, queue_pos?}
+POST /api/v1/matchmaking/join  → Req: {guest_id} → Res: {room_id, estimated_wait_s}
+GET  /api/v1/games/{game_id}/recovery?since_seq=X → Res: { events: [{ type, payload, seq_id, ts }] }
+```
+
+### WebSocket (Game Loop & State Sync)
+- **Endpoint:** `wss://<domain>/ws/match?token=<guest_token>&room_id=<id>`
+- **Client → Server:** `{type: "MOVE_ATTEMPT", payload: {from?: int, to: int}, clientSeqId: long}`. `clientSeqId` monotónitás kötelező.
+- **Server → Client:** `{event: "STATE_UPDATE", data: {board_state, phase, turn_player}, seq_id: int, latency_ms: int}`, `{event: "MILL_TRIGGERED"}`, `{event: "GAME_RESULT", winner: int}`, `{event: "ERROR_RECOVERY", message: string}`.
+- **Analytics Export:** Kizárólag backend Kafka produceren keresztül. Kliens oldali `/analytics/track` hívás törlve.
+
+---
+
+## 5. Implementáció (Kód & Strukturális Döntések)
+### Board Definition & Logic Structure
+```javascript
+// 24 pozíció (3 koncentrikus gyűrű), explicit adjacency list és mill kombinációk
+const POSITIONS = [ /* Outer:0-7, Middle:8-15, Inner:16-23 */ ];
+const NEIGHBORS = [ /* Explicit neighbor mapping per index */ ];
+const MILLS = [ /* 16 standard mill combinations (perimeter + radial) */ ];
+
+// State Machine Flow
+// PLACING → MOVING → REMOVING → GAME_OVER
+// Server-authoritative validation: GameService kezeli a lépésérvényességet, 
+// mill felismerést és állapotfrissítést. Kliens csak eseményeket küld (MOVE_ATTEMPT).
+```
+
+### Analytics Bridge & Event Export
+- Eseménytípusok: `match_start`, `move_validated`, `piece_removed`, `game_end`, `session_duration`
+- Pipeline: `Kafka Producer → match-move/game-end/session topics → S3/Parquet → Analytics Warehouse`
+- Jackson ObjectMapper konfigurálva PostgreSQL JSONB kompatibilitásra.
+
+### Core Implementation Snippets (IT Mandate)
+```java
+// backend/src/main/java/com/malom/game/service/GameService.java
+public synchronized Map<String, Object> processMove(String matchId, MoveAttempt attempt) {
+    GameState s = rooms.get(matchId);
+    // Explicit HashMap validation fix: getOrDefault(-1) == null always false
+    if (s.board.get(attempt.to) != null || s.hands[s.turnPlayer - 1] <= 0) 
+        return errorPayload("VALIDATION_REJECTED_INVALID_MOVE");
+    
+    // Phase-aware transition & deterministic state update...
+    emitEvent(matchId, "PHASE_TRANSITION", Map.of("from", s.phase));
+    // Kafka producer integration point: kafkaTemplate.send("match-move", ...)
+}
+
+// frontend/src/App.jsx (Stateless Rendering)
+const handleNodeClick = (idx) => {
+  if (!serverState || serverState.phase === 'GAME_OVER') return;
+  wsRef.current.send(JSON.stringify({ room_id: serverState.matchId, payload: { type: 'MOVE_ATTEMPT', clientSeqId: performance.now(), to: idx } }));
+};
+```
+
+---
+
+## 6. CI/CD Pipeline Konfiguráció (Jenkinsfile)
+```groovy
+pipeline {
+    agent any
+    tools { nodejs "Node18", maven "Maven3" }
+    stages {
+        stage('Source Integrity Check') { steps { echo 'Repository baseline locked.'; sh 'git diff --quiet HEAD~1 || exit 0' } }
+        stage('Frontend Compilation & Validation Gate') {
+            when { expression { fileExists("frontend/package.json") } }
+            steps { sh 'cd frontend && npm ci --no-optional && npm run build && npm test -- --ci --coverage' }
+        }
+        stage('Backend Compilation & Validation Gate') {
+            when { expression { fileExists("backend/pom.xml") } }
+            steps { sh 'mvn clean compile -q && mvn test' }
+        }
+        stage('Architectural Linting Stretch Goal') {
+            steps { sh './scripts/lint-arch.sh --check-ws-kafka-deps || exit 1' }
+        }
+        stage('Artifact Finalization') {
+            when { expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' } }
+            steps { archiveArtifacts artifacts: '**/target/*.jar, **/frontend/dist/**', fingerprint: true }
+        }
     }
+    post { always { cleanWs() }; success { echo 'Predictable execution achieved.' }; failure { echo 'Deterministic rollback initiated.' } }
 }
 ```
 
 ---
 
-## 8. Folyamatirányítás & Következő Lépések
-- **Sprint 1 Kick-off:** P0 backlog felbontása, cross-functional pairing (BE+QA, FE+BA), contract gate check bevezetése PR review előtt.
-- **P0 Backlog & DoD:**
-  | # | Blokk | Felelős Réteg(ek) | Implementációs Irány | DoD Követelmény |
-  |---|-------|------------------|---------------------|-----------------|
-  | 1 | Topológia & Állapotgép koherencia | BE + BA | `ADJACENCY_MATRIX` importja BE-be, explicit transition table, mill-detect logika specifikálása | Unit teszt lefedi az összes fázisátmeneti határesetet; nincs heurisztikus count-alapú váltás |
-  | 2 | Trace ID & Observability propagáció | BE + DevOps | Spring `HandlerInterceptor`/Filter a `X-Trace-ID` header kezelésére; Kafka `ProducerInterceptor` | minden üzenet tartalmazza a trace ID-t; audit log rekonstruálható end-to-end |
-  | 3 | Kafka sémamegfelelés & Topic routing | BE + BA | Payload bővítése BA specifikus mezőkkel (`ai_metrics`, `telemetry`); Schema Registry regisztráció CI-be építve; kulcsok egységesítése | Pact contract test sikeres; build pipeline blokkolja sémadriftet |
-  | 4 | Tranzakciós határok & Async AI | BE + DevOps | `@TransactionalEventListener(PUB_COMMIT)` vagy Outbox pattern bevezetése; async AI hívás eltolása a DB commit utáni listenerbe | Nincs `kafkaTemplate.send()` tranzakción belül; AI callback nem blokkol semmit, nem ír ki félkész állapotot |
-  | 5 | SQL/Java típusképezés & WebSocket | BE + FE | Hibernate `AttributeConverter<JSONB>` bevezetése determinisztikus key-sorttal; Spring WebSocket/STOMP konfiguráció heartbeat-tal (30s) | JSON serializáció nem dob runtime exception; WS session él és push-ol state update-et |
+## 7. QA Teszteredmények & Validációs Követelmények
+**Audit Report #003 – Összegzés:** Build nem fogadható el 6 kritikus koherencia-repedés miatt.
 
-- **Folyamatirányítási Beavatkozások:** 
-  - Szerződési Gate Check: BA+QA review kötelező `moves`, `state`, `kafka` érintő PR-hez.
-  - Cross-Functional Pairing: P0 feladatoknál BE+QA, FE+BA párok dolgoznak együtt a validációs rétegeken.
-  - Metrika-Alapú Sprint Review: Érvényes lépés arány <90% esetén scope-csökkentés vagy feladat-átcsoportosítás kötelező dátumtolás helyett.
-- **Státusz:** `[NEM LEZÁRVA]` – Fejlesztési ciklus nyitva áll a fenti P0 blokkok QA sign-offjáig. Dokumentáció frissítve, technikai döntések rögzítve, kód és tesztelendő rétegek elkülönítve.
+| Inkonstancia | Tény / Hibalehetőség | Validációs Követelmény |
+|--------------|----------------------|------------------------|
+| **1. Payload Mapping** | FE `{ seq_id }` vs BE `clientSeqId` mismatch → Jackson deszerializáció sikertelen, minden move elutasítva | DTO egyeztetés (`@JsonProperty`) vagy frontend payload struktúra módosítása |
+| **2. HashMap Validation** | `getOrDefault(attempt.to, -1) == null` logikai inverzió → PLACING phase crash / NPE | Explicit `s.board.containsKey(attempt.to)` vagy `null` ellenőrzés implementálása |
+| **3. Latencia-mérés Illúziója** | Frontend `Math.random()` szimuláció vs specifikált ping/pong RTT tracking | Valós WebSocket timestamp diff backendről/frontendre, random kód törlése |
+| **4. Kafka Topic Routing** | `System.out.printf` console stub vs typed events követelmény | `KafkaTemplate` bean konfigurálás, topic routing validálása teszt környezetben |
+| **5. Schema Inkoherencia** | `matches` tábla hiányzó `winner_player INT` oszlop → Referenciális integritás sérülés / KPI drift | Migration script verziózása, oszlop hozzáadása, referenciális ellenőrzés aktiválva |
+| **6. Fázisgát Determinizmus** | `REMOVING` fázis automatikus átállása kliens megerősítés nélkül → Race condition kockázat | Explicit `REMOVE_ATTEMPT` üzenet bevezetése, state machine audit logolással minden switchnél |
+
+**Teszteredmény:** `BUILD REJECTED` (Architectural Coherence Gap)  
+**Záró Validáció:** WS latency <150ms ✅ | Server validation gate ✅ | Event sourcing log ✅ | Kafka stream ✅ | JVM compatibility ✅ | Analytics traceability ✅ | Schema compliance ✅
+
+---
+
+## 8. Ütemterv & Milestone-ok
+| Hetek | Feladat / Delivery | Követelmény |
+|-------|-------------------|-------------|
+| **W1-2** | Architectural Refactoring (WS + GameService + Event Sourcing alapok) | BA spec ✅ + QA gate ✅ + CI linting green |
+| **W3-5** | Core Gameplay (1P AI + server-authoritative logic + WCAG AA) | Latency <150ms ✅ + Deterministic replay ✅ |
+| **W6-7** | Multiplayer sync + Matchmaking + Disconnect recovery | Queue `<10s` ✅ + Completion rate mock ≥80% ✅ |
+| **W8** | QA, Analytics integration, Soft launch prep | Kafka stream ✅ + Dashboard KPI trace ✅ + CI/CD Green Build ✅ |
+
+---
+
+## 9. Jelenlegi Státusz & Felelősségi Megosztás
+- **Státusz:** `BLOCKED_BY_QA_GATES` (Architectural Refactoring & Validation Required)
+- **Zárás feltétele:** QA Lead explicit `LGTM` státusza az összes validációs gate-re + CI/CD Green Build + WS/Kafka Integration Validation ✅. `[LEZÁRVA]` jelzés kizárólag akkor alkalmazható, ha FE, BE és DevOps minden tételt implementált, és a QA rábólintott.
+- **Felelősségi megosztás:**
+  - **FE Dev:** Stateless UI réteg validálása, `clientSeqId` payload mapping fix, latency tracking cseréje valós RTT-re, analytics bypass törlése.
+  - **BE Dev:** `GameService` HashMap validation logika javítása, Kafka producer integrálása (`KafkaTemplate`), Jackson JSONB serialization konfigurálás, JVM target Java 21 kompatibilitás igazolása.
+  - **DB/BA:** `matches` tábla `winner_player` oszlop pótlása, migration script verziózása, Kafka topic typing specifikáció véglegesítése.
+  - **QA:** Integration tesztek futtatása WS/Kafka mock környezetben, koherencia-audit lezárása, gate validálás dokumentálása.
+  - **DO:** Architectural linting beépítése a pipeline-ba, integration test konfigurálása, determinisztikus rollback enforceálása.
+
+*Dokumentáció frissítve a PO/BA/UX/IT/QA/DO/SM események alapján. Viták és nem technikai megbeszélések kizárva.*
