@@ -1,4 +1,4 @@
-package com.malom.game.config;
+package com.malom.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
@@ -11,16 +11,17 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
-    public void configureMessageBroker(MessageBrokerRegistry registry) {
-        // Server-authoritative state sync destination. No client-to-client routing.
-        registry.enableSimpleBroker("/topic");
-        registry.setApplicationDestinationPrefixes("/app");
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        // Destinations for clients to receive messages (Server -> Client)
+        config.enableSimpleBroker("/game");
+        config.setApplicationDestinationPrefixes("/app");
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws/match")
-                .setAllowedOriginPatterns("*") // Restrict in production to domain allowlist
-                .withSockJS(); // Fallback for legacy clients; native WS preferred per spec
+        // Fixes Protocol Dissonance: Explicit STOMP endpoint with SockJS fallback for legacy clients
+        registry.addEndpoint("/ws/game")
+                .setAllowedOriginPatterns("*")
+                .withSockJS();
     }
 }
