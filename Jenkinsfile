@@ -25,7 +25,7 @@ pipeline {
             when { expression { fileExists('frontend/package.json') } }
             steps {
                 dir('frontend') {
-                    sh 'JENKINS_NODE_COOKIE=dontKillMe nohup npm start > frontend.log 2>&1 &'
+                    sh 'JENKINS_NODE_COOKIE=dontKillMe HOST=0.0.0.0 nohup npm start > frontend.log 2>&1 &'
                 }
             }
         }
@@ -33,7 +33,7 @@ pipeline {
             when { expression { fileExists('backend/pom.xml') } }
             steps {
                 dir('backend') {
-                    sh 'JENKINS_NODE_COOKIE=dontKillMe nohup mvn spring-boot:run -Dserver.port=8081 > backend.log 2>&1 &'
+                    sh 'JENKINS_NODE_COOKIE=dontKillMe nohup mvn spring-boot:run -Dserver.port=8081 -Dserver.address=0.0.0.0 > backend.log 2>&1 &'
                 }
             }
         }
