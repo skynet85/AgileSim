@@ -1,612 +1,383 @@
 <!DOCTYPE html>
 <html lang="hu">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Malm.io – Online Malom Játék</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
-        body { font-family: 'Inter', sans-serif; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-
-        .board-line { stroke: #334155; stroke-width: 2.5; fill: none; vector-effect: non-scaling-stroke; }
-        .point-node { cursor: pointer; transition: all 0.2s ease; }
-        .point-node:hover circle.outer { r: 18; }
-        
-        .piece-white { fill: #f8fafc; stroke: #6366f1; stroke-width: 2.5; filter: drop-shadow(0 2px 4px rgba(99,102,241,0.3)); }
-        .piece-black { fill: #0f172a; stroke: #a855f7; stroke-width: 2.5; filter: drop-shadow(0 2px 4px rgba(168,85,247,0.3)); }
-
-        .valid-target { animation: pulse-valid 1.5s infinite ease-in-out; fill: #10b981; opacity: 0.4; }
-        @keyframes pulse-valid { 
-            0%, 100% { opacity: 0.3; r: 22; } 
-            50% { opacity: 0.6; r: 26; } 
-        }
-
-        .mill-glow { filter: drop-shadow(0 0 8px rgba(245,158,11,0.6)); }
-        
-        .glass-panel { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(51, 65, 85, 0.5); }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(99,102,241,0.3);
-        }
-        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99,102,241,0.4); }
-
-        .kpi-badge { background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(71, 85, 105, 0.6); }
-        
-        .phase-indicator { transition: all 0.3s ease; }
-        .phase-active { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; box-shadow: 0 0 12px rgba(245,158,11,0.4); }
-
-        .sync-live { color: #10b981; }
-        .sync-reconcile { color: #ef4444; animation: blink 1s infinite; }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-
-        .monetization-hook { background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color: #0f172a; box-shadow: 0 0 20px rgba(251,191,36,0.3); }
-        
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-
-        .modal-overlay { transition: opacity 0.3s ease; }
-        .modal-content { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Módosított 1v2 Malom - Interaktív Prototípus</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .node-transition { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    .pulse-ring { animation: pulse-ring 2s infinite; }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.8); opacity: 0.5; }
+      100% { transform: scale(1.4); opacity: 0; }
+    }
+  </style>
 </head>
-<body class="bg-slate-950 text-slate-200 min-h-screen flex items-center justify-center p-4 overflow-hidden">
+<body class="bg-slate-950 text-slate-200 min-h-screen flex items-center justify-center p-4">
+  <div id="root"></div>
 
-    <!-- Main App Container -->
-    <div id="app" class="relative w-full max-w-[600px] aspect-square bg-slate-900/20 rounded-3xl border border-slate-800/50 shadow-2xl overflow-hidden glass-panel">
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // --- Game Logic & Constants ---
+    const NODES_COUNT = 24;
+    const ADJACENCY_MAP = [
+      [0,1],[0,9],[1,2],[1,13],[2,3],[3,4],[3,15],[4,5],[4,16],[5,6],[5,17],
+      [6,7],[6,18],[7,8],[7,19],[8,10],[9,10],[9,11],[10,12],[10,22],[11,13],
+      [11,21],[12,14],[12,23],[13,16],[14,15],[15,18],[16,19],[17,20],[18,20]
+    ];
+
+    const MILL_PATTERNS = [
+      [0,1,2], [3,4,5], [6,7,8], [9,10,11], // Outer ring segments
+      [12,13,14], [15,16,17], [18,19,20], [21,22,23] // Inner/Mid rings
+    ];
+
+    const INITIAL_STATE = {
+      phase: 'PLACEMENT',
+      turn: 'P1',
+      board: Array(NODES_COUNT).fill(null),
+      piecesLeft: { P1: 9, P2: 4, P3: 4 }, // Asymmetric 1v2 setup
+      selectedNode: null,
+      eventLog: [],
+      KPI: { sessionTime: 0, moves: 0, millsFormed: 0 }
+    };
+
+    const PHASE_COLORS = {
+      PLACEMENT: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30',
+      MOVEMENT: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+      REMOVAL: 'text-rose-400 bg-rose-500/10 border-rose-500/30'
+    };
+
+    // --- Components ---
+
+    const Header = () => (
+      <header className="w-full max-w-6xl mx-auto flex justify-between items-center mb-8 px-4 py-3 bg-slate-900/60 backdrop-blur-md rounded-xl border border-slate-800 shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-inner">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><circle cx="12" cy="12" r="10"/><path d="m8 8 8 8"/><path d="M16 8v8"/></svg>
+          </div>
+          <div>
+            <h1 className="text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 to-purple-300">Módosított 1v2 Malom</h1>
+            <p className="text-xs text-slate-500 uppercase tracking-wider">Aszimmetrikus Kooperatív Prototípus v1.0</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="px-3 py-1 rounded-full text-xs font-medium bg-slate-800 border border-slate-700 text-slate-400">IDEMPOTENCY: READY</span>
+          <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> LIVE
+          </span>
+        </div>
+      </header>
+    );
+
+    const PlayerPanel = ({ player, piecesLeft, isActive, isTeam }) => {
+      const colorClass = isTeam ? 'text-blue-400 border-blue-500/30 bg-blue-500/10' : 'text-indigo-400 border-indigo-500/30 bg-indigo-500/10';
+      const activeRing = isActive ? 'ring-2 ring-white/80 shadow-lg shadow-white/10 scale-[1.02]' : '';
+      
+      return (
+        <div className={`p-4 rounded-xl border transition-all duration-300 ${colorClass} ${activeRing}`}>
+          <h3 className="text-sm font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
+            {player === 'P1' ? 'Szóló Játékos (Solo)' : `${player} Csapat`}
+            {isTeam && <span className="text-xs opacity-70">(P2+P3)</span>}
+          </h3>
+          
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-slate-400">Darabok</span>
+              <span className={`text-xl font-mono font-bold ${isActive ? 'text-white' : 'text-slate-300'}`}>{piecesLeft}</span>
+            </div>
+            
+            <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-500 ${isTeam ? 'bg-blue-400' : 'bg-indigo-400'}`} 
+                style={{ width: `${(piecesLeft / 9) * 100}%` }}
+              ></div>
+            </div>
+
+            {isActive && (
+              <div className="pt-2 border-t border-white/10">
+                <p className="text-xs text-slate-400 italic">Várakozás a lépésre...</p>
+                <div className="mt-2 flex gap-1">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className={`w-1.5 h-1.5 rounded-full bg-white/50 animate-bounce`} style={{ animationDelay: `${i * 0.1}s` }}></div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const GameBoard = ({ board, turn, phase, selectedNode, onNodeClick }) => {
+      // Coordinates for 24 nodes (simplified grid mapping for visual clarity)
+      const getCoords = (idx) => {
+        // Outer ring: 0-8, Mid ring: 9-17, Inner ring: 18-23 (adjusted for standard malom layout visualization)
+        // Using a mathematical distribution based on the provided adjacency logic visual representation
+        if (idx < 9) return { x: (idx % 5), y: Math.floor(idx / 5) * 40 + 10 }; // Outer approximation
+        if (idx < 18) return { x: ((idx - 9) % 4) + 1, y: 30 + Math.floor((idx - 9) / 4) * 25 };
+        return { x: ((idx - 18) % 3), y: 60 + (idx - 18) * 10 };
+      };
+
+      // Better visual layout using polar coordinates mapped to SVG viewBox
+      const getSVGPos = (i) => {
+        let cx, cy;
+        if (i < 9) { // Outer ring
+          const angle = (i / 9) * Math.PI * 2 - Math.PI/2;
+          cx = 50 + 40 * Math.cos(angle);
+          cy = 50 + 40 * Math.sin(angle);
+        } else if (i < 18) { // Middle ring
+          const angle = ((i-9)/9) * Math.PI * 2 - Math.PI/2;
+          cx = 50 + 20 * Math.cos(angle);
+          cy = 50 + 20 * Math.sin(angle);
+        } else { // Inner ring (simplified for prototype)
+           const angle = ((i-18)/6) * Math.PI * 2 - Math.PI/2;
+           cx = 50 + 8 * Math.cos(angle);
+           cy = 50 + 8 * Math.sin(angle);
+        }
+        return { x: cx, y: cy };
+      };
+
+      return (
+        <div className="relative w-full max-w-lg aspect-square bg-slate-900/40 rounded-2xl border border-slate-800 p-6 shadow-2xl backdrop-blur-sm">
+          {/* SVG Grid & Connections */}
+          <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none opacity-40">
+            {ADJACENCY_MAP.map(([a, b], i) => (
+              <line 
+                key={i} 
+                x1={getSVGPos(a).x} y1={getSVGPos(a).y} 
+                x2={getSVGPos(b).x} y2={getSVGPos(b).y} 
+                stroke="#475569" strokeWidth="0.8" 
+              />
+            ))}
+          </svg>
+
+          {/* Interactive Nodes */}
+          <div className="absolute inset-0">
+            {board.map((owner, idx) => {
+              const pos = getSVGPos(idx);
+              const isSelected = selectedNode === idx;
+              const isHighlight = phase !== 'REMOVAL' && board.filter(x => x === turn).length > 0; // Highlight own pieces during movement
+
+              return (
+                <button
+                  key={idx}
+                  onClick={() => onNodeClick(idx)}
+                  className={`absolute w-3 h-3 -ml-1.5 -mt-1.5 rounded-full node-transition 
+                    ${isSelected ? 'ring-2 ring-white scale-150 z-30 shadow-[0_0_15px_rgba(255,255,255,0.6)]' : ''}
+                    ${owner === turn && isHighlight && !isSelected ? 'opacity-80 hover:scale-125 cursor-pointer' : ''}
+                    ${!owner && isSelected ? 'bg-slate-700 border border-slate-500 cursor-crosshair' : ''}
+                  `}
+                  style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+                >
+                  {owner && (
+                    <div className={`w-full h-full rounded-full shadow-lg border ${owner === 'P1' ? 'bg-indigo-500 border-indigo-300' : owner === 'P2' || owner === 'P3' ? 'bg-blue-500 border-blue-300' : ''}`}>
+                      {isSelected && <div className="absolute inset-0 rounded-full bg-white/30 animate-ping"></div>}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Phase Indicator Overlay */}
+          <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest border ${PHASE_COLORS[phase]}`}>
+            {phase === 'PLACEMENT' && '📦 Placement'}
+            {phase === 'MOVEMENT' && '⚔️ Movement'}
+            {phase === 'REMOVAL' && '💥 Removal Phase'}
+          </div>
+        </div>
+      );
+    };
+
+    const EventLog = ({ logs }) => (
+      <div className="w-full mt-6 bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden flex flex-col h-32">
+        <div className="px-4 py-2 bg-slate-800/50 border-b border-slate-700 text-xs font-bold uppercase tracking-wider text-slate-400 flex justify-between">
+          <span>Eseménynapló (Audit Trail)</span>
+          <span className="text-slate-500">{logs.length} bejegyzés</span>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700">
+          {logs.length === 0 ? (
+            <p className="text-center text-slate-600 text-xs mt-4 italic">Várakozás az első lépésre...</p>
+          ) : (
+            logs.slice().reverse().map((log, i) => (
+              <div key={i} className="flex items-start gap-2 text-xs p-1.5 rounded bg-slate-800/30 border border-slate-700/30 animate-fade-in">
+                <span className="text-slate-500 font-mono">{log.time}</span>
+                <span className={`font-medium ${log.player === 'P1' ? 'text-indigo-400' : 'text-blue-400'}`}>{log.player}:</span>
+                <span className="text-slate-300">{log.action}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+
+    const App = () => {
+      const [gameState, setGameState] = useState(INITIAL_STATE);
+      const [timestamp, setTimestamp] = useState(new Date().toLocaleTimeString());
+
+      // Update timestamp periodically for realism
+      useEffect(() => {
+        const timer = setInterval(() => setTimestamp(new Date().toLocaleTimeString()), 1000);
+        return () => clearInterval(timer);
+      }, []);
+
+      const addLog = (player, action) => {
+        setGameState(prev => ({
+          ...prev,
+          eventLog: [...prev.eventLog, { time: new Date().toLocaleTimeString(), player, action }]
+        }));
+      };
+
+      const handleNodeClick = (idx) => {
+        if (!gameState.turn || gameState.phase === 'REMOVAL') return; // Simplified for prototype
+
+        const currentOwner = gameState.board[idx];
         
-        <!-- Header / Status Bar -->
-        <div class="absolute top-0 left-0 right-0 z-20 p-4 flex justify-between items-start pointer-events-none">
-            <div class="flex gap-3 pointer-events-auto">
-                <button onclick="switchView('home')" class="glass-panel px-3 py-1.5 rounded-full text-xs font-medium hover:bg-slate-800/60 transition-colors">
-                    🏠 Home
-                </button>
-                <button onclick="switchView('leaderboard')" class="glass-panel px-3 py-1.5 rounded-full text-xs font-medium hover:bg-slate-800/60 transition-colors">
-                    🏆 Ranglista
-                </button>
-            </div>
+        if (gameState.phase === 'PLACEMENT') {
+          if (currentOwner !== null) return; // Occupied
+          
+          const newBoard = [...gameState.board];
+          newBoard[idx] = gameState.turn;
+          const newPiecesLeft = gameState.piecesLeft[gameState.turn] - 1;
+          
+          setGameState(prev => ({
+            ...prev,
+            board: newBoard,
+            piecesLeft: { ...prev.piecesLeft, [prev.turn]: newPiecesLeft },
+            selectedNode: null,
+            phase: newPiecesLeft === 0 ? 'MOVEMENT' : prev.phase
+          }));
+          addLog(gameState.turn, `Placement at Node ${idx}`);
+
+        } else if (gameState.phase === 'MOVEMENT') {
+          // Selection or Move logic
+          if (selectedNode === null) {
+            if (currentOwner !== gameState.turn) return;
+            setGameState(prev => ({ ...prev, selectedNode: idx }));
+          } else {
+            const from = selectedNode;
+            if (currentOwner !== null || currentOwner === gameState.turn) return; // Target must be empty
             
-            <!-- KPI Overlay (Server-driven tracking simulation) -->
-            <div id="kpi-display" class="flex flex-col gap-1.5 pointer-events-auto">
-                <div class="kpi-badge px-3 py-1.5 rounded-full text-[10px] mono flex items-center gap-2">
-                    <span>Sync:</span>
-                    <span id="sync-status" class="font-bold sync-live">LIVE</span>
-                    <span>• T1FM: <span id="t1fm-counter">0.0s</span></span>
-                </div>
-                <div class="kpi-badge px-3 py-1.5 rounded-full text-[10px] mono flex items-center gap-2">
-                    <span>Phase:</span>
-                    <span id="phase-display" class="font-bold">PLACEMENT</span>
-                    <span>• Seq: <span id="seq-counter">0</span></span>
-                </div>
-            </div>
-        </div>
+            // Adjacency check
+            const isAdjacent = ADJACENCY_MAP.some(([a,b]) => (a===from && b===idx) || (b===from && a===idx));
+            if (!isAdjacent) {
+              alert("Érvénytelen lépés: Nem szomszédos pozíció!");
+              setGameState(prev => ({ ...prev, selectedNode: null }));
+              return;
+            }
 
-        <!-- Phase Indicators -->
-        <div id="phase-bar" class="absolute top-16 left-4 right-4 flex justify-center gap-2 pointer-events-none z-10">
-            <div id="ph-placement" class="phase-indicator px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800/50 border border-slate-700/50">Placement</div>
-            <div id="ph-movement" class="phase-indicator px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800/50 border border-slate-700/50">Movement</div>
-            <div id="ph-flying" class="phase-indicator px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800/50 border border-slate-700/50">Flying</div>
-            <div id="ph-removing" class="phase-indicator px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800/50 border border-slate-700/50">Removing</div>
-        </div>
-
-        <!-- Game Board SVG -->
-        <svg id="game-board" viewBox="0 0 400 400" class="w-full h-full select-none absolute inset-0 z-10">
-            <!-- Edges -->
-            <g id="edges-layer"></g>
+            const newBoard = [...gameState.board];
+            newBoard[from] = null;
+            newBoard[idx] = gameState.turn;
             
-            <!-- Valid Move Overlay (Server-driven) -->
-            <g id="valid-moves-layer"></g>
-
-            <!-- Points & Pieces -->
-            <g id="nodes-layer"></g>
-        </svg>
-
-        <!-- Server Validation Feedback Overlay -->
-        <div id="validation-overlay" class="absolute inset-0 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm z-30 opacity-0 pointer-events-none transition-opacity duration-200">
-            <div class="text-red-400 font-mono text-xs border border-red-500/30 px-4 py-2 rounded-lg bg-red-500/10 shadow-xl max-w-[80%] text-center">
-                VALID_MOVE_SET: Invalid transition detected. Reconciliation initiated...
-            </div>
-        </div>
-
-        <!-- Monetization Hook (Daily Reward) -->
-        <button onclick="claimDaily()" id="daily-reward-btn" class="absolute bottom-4 right-4 monetization-hook px-3 py-2 rounded-full text-[10px] font-bold pointer-events-auto hover:scale-105 transition-transform shadow-lg">
-            🎁 Napi Jutalom (Free)
-        </button>
-
-        <!-- Matchmaking Overlay -->
-        <div id="matchmaking-overlay" class="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/90 backdrop-blur-md">
-            <div class="text-center space-y-6 p-8 max-w-xs">
-                <h1 class="text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">MALM.IO</h1>
-                <p class="text-slate-400 text-sm mono">Deterministic State Engine v0.2</p>
-                
-                <div class="space-y-3 pointer-events-auto">
-                    <button onclick="startMatchmaking('casual')" class="btn-primary w-full py-3 rounded-xl font-semibold text-white shadow-lg">
-                        🎲 Casual Match
-                    </button>
-                    <button onclick="startMatchmaking('ranked')" class="glass-panel w-full py-3 rounded-xl font-semibold hover:bg-slate-800/60 transition-all border border-indigo-500/30">
-                        ⚔️ Ranked Queue
-                    </button>
-                </div>
-
-                <div class="pt-4 text-[10px] text-slate-500 mono space-y-1">
-                    <p>p95 latency: 1.2ms • Sync: OK</p>
-                    <p>ELO: 1200 | Tier: Bronze</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Game Over Modal -->
-        <div id="game-over-modal" class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-300">
-            <div class="glass-panel p-6 rounded-2xl max-w-xs w-full text-center space-y-4 modal-content transform scale-95">
-                <h2 id="winner-text" class="text-xl font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">WHITE WINS!</h2>
-                
-                <div class="space-y-2 text-sm mono">
-                    <div class="flex justify-between"><span>Mills Formed:</span><span id="mills-count" class="text-indigo-400">3</span></div>
-                    <div class="flex justify-between"><span>Session Length:</span><span id="session-length" class="text-purple-400">12:34</span></div>
-                    <div class="flex justify-between"><span>KPI Score:</span><span id="kpi-score" class="text-emerald-400">98%</span></div>
-                </div>
-
-                <button onclick="closeGameOver()" class="btn-primary w-full py-2.5 rounded-xl font-semibold text-white mt-4">
-                    Play Again
-                </button>
-            </div>
-        </div>
-
-        <!-- Remove Piece Modal -->
-        <div id="remove-modal" class="absolute inset-0 z-45 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200">
-            <div class="glass-panel p-4 rounded-xl max-w-[80%] text-center modal-content transform scale-95">
-                <p class="text-yellow-400 font-bold mb-2">🔥 MILL FORMED!</p>
-                <p class="text-xs text-slate-400 mb-3">Select opponent piece to remove</p>
-                <div id="remove-pieces-layer" class="flex justify-center gap-2 pointer-events-auto"></div>
-            </div>
-        </div>
-
-    </div>
-
-    <script>
-        // ==================== GAME CONFIGURATION ====================
-        const POINTS = [
-            {x:50,y:50},{x:150,y:50},{x:250,y:50},{x:350,y:50},
-            {x:350,y:150},{x:350,y:250},{x:350,y:350},{x:250,y:350},
-            {x:150,y:350},{x:50,y:350},{x:50,y:250},{x:50,y:150},
-            {x:90,y:90},{x:170,y:90},{x:250,y:90},{x:310,y:90},
-            {x:310,y:170},{x:310,y:250},{x:310,y:310},{x:250,y:310},
-            {x:170,y:310},{x:90,y:310},{x:90,y:250},{x:90,y:170}
-        ];
-
-        const EDGES = [
-            [0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],
-            [8,9],[9,10],[10,11],[11,12],[12,13],[13,14],[14,15],[15,16],
-            [16,17],[17,18],[18,19],[19,20],[20,21],[21,22],[22,23],[23,24] || null, // Note: 24 points max index 23
-            [0,8],[4,12],[6,16],[2,20]
-        ];
-
-        const MILLS = [
-            [0,1,2],[2,3,4],[4,5,6],[6,7,8],
-            [8,9,10],[10,11,0],[12,13,14],[14,15,16],
-            [16,17,18],[18,19,20],[20,21,22],[22,23,12],
-            [0,12,23],[4,16,20],[2,14,18],[6,15,17]
-        ];
-
-        // Adjacency list for movement validation
-        const ADJACENCY = {};
-        EDGES.forEach(([a, b]) => {
-            if (!ADJACENCY[a]) ADJACENCY[a] = [];
-            if (!ADJACENCY[b]) ADJACENCY[b] = [];
-            ADJACENCY[a].push(b);
-            ADJACENCY[b].push(a);
-        });
-
-        // ==================== GAME STATE (Server-Driven Simulation) ====================
-        const gameState = {
-            phase: 'placement', // placement | movement | flying | removing
-            currentPlayer: 'white',
-            board: Array(24).fill(null),
-            piecesInHand: { white: 9, black: 9 },
-            validMoves: [],
-            sequenceNumber: 0,
-            syncStatus: 'live', // live | pending | reconcile
-            isValidTurn: true,
-            startTime: Date.now(),
-            millsFormed: 0,
-            selectedPiece: null,
-            opponentPieces: [] // For removal phase
-        };
-
-        let sessionStart = Date.now();
-        let t1fmTimer = null;
-
-        // ==================== RENDERING ENGINE ====================
-        function renderBoard() {
-            const edgesLayer = document.getElementById('edges-layer');
-            const nodesLayer = document.getElementById('nodes-layer');
-            const validMovesLayer = document.getElementById('valid-moves-layer');
-
-            // Render Edges
-            edgesLayer.innerHTML = EDGES.filter(e => e && e[0] !== undefined).map(([a, b], i) => 
-                `<line x1="${POINTS[a].x}" y1="${POINTS[a].y}" x2="${POINTS[b].x}" y2="${POINTS[b].y}" class="board-line" />`
-            ).join('');
-
-            // Render Valid Moves (Server-Driven Overlay)
-            validMovesLayer.innerHTML = gameState.validMoves.map(idx => {
-                const p = POINTS[idx];
-                return `<circle cx="${p.x}" cy="${p.y}" r="18" class="valid-target pointer-events-none" />`;
-            }).join('');
-
-            // Render Points & Pieces
-            nodesLayer.innerHTML = gameState.board.map((owner, idx) => {
-                const p = POINTS[idx];
-                const isSelected = gameState.selectedPiece === idx;
-                
-                let pieceClass = '';
-                if (owner === 'white') pieceClass = 'piece-white';
-                else if (owner === 'black') pieceClass = 'piece-black';
-
-                return `
-                    <g transform="translate(${p.x}, ${p.y})" 
-                       class="point-node" 
-                       onclick="handleNodeClick(${idx})">
-                        <!-- Base Point -->
-                        <circle r={12} fill="${owner ? 'transparent' : '#334155'}" stroke="#475569" stroke-width="1.5" />
-                        
-                        ${!owner && gameState.validMoves.includes(idx) ? '' : ''} // Valid move handled separately
-                        
-                        <!-- Piece -->
-                        ${owner ? `
-                            <circle r={20} class="${pieceClass}" 
-                                   style="${isSelected ? 'stroke: #fbbf24; stroke-width: 3;' : ''}" />
-                            ${gameState.phase === 'removing' && !gameState.opponentPieces.includes(idx) ? '' : ''}
-                        ` : ''}
-
-                        <!-- Selection Ring -->
-                        ${isSelected ? `<circle r={28} fill="none" stroke="#fbbf24" stroke-width="2" class="mill-glow pointer-events-none" />` : ''}
-                    </g>
-                `.replace(/=\{\d+\}/g, ''); // Fix template literal syntax for browser
-            }).join('');
-
-            updateUI();
-        }
-
-        function updateUI() {
-            // Phase Display
-            document.getElementById('phase-display').textContent = gameState.phase.toUpperCase();
-            
-            // Phase Bar Indicators
-            ['placement', 'movement', 'flying', 'removing'].forEach(p => {
-                const el = document.getElementById(`ph-${p}`);
-                if (p === gameState.phase) {
-                    el.classList.add('phase-active');
-                    el.classList.remove('bg-slate-800/50', 'border-slate-700/50');
-                } else {
-                    el.classList.remove('phase-active');
-                    el.classList.add('bg-slate-800/50', 'border-slate-700/50');
-                }
+            // Simple Mill Check (Prototype level)
+            let millFormed = false;
+            MILL_PATTERNS.forEach(pattern => {
+              if (pattern.includes(idx) && pattern.every(p => newBoard[p] === gameState.turn)) millFormed = true;
             });
 
-            // Sync Status
-            const syncEl = document.getElementById('sync-status');
-            if (gameState.syncStatus === 'live') {
-                syncEl.textContent = 'LIVE';
-                syncEl.className = 'font-bold sync-live';
-            } else {
-                syncEl.textContent = gameState.syncStatus.toUpperCase();
-                syncEl.className = 'font-bold sync-reconcile';
-            }
-
-            // Sequence Counter
-            document.getElementById('seq-counter').textContent = gameState.sequenceNumber;
-
-            // KPI Timer (T1FM)
-            if (!t1fmTimer && gameState.phase === 'placement') {
-                t1fmTimer = setInterval(() => {
-                    const elapsed = ((Date.now() - sessionStart) / 1000).toFixed(1);
-                    document.getElementById('t1fm-counter').textContent = `${elapsed}s`;
-                    if (parseFloat(elapsed) > 8.0) {
-                        // UX Warning for T1FM metric
-                        document.getElementById('kpi-display').classList.add('animate-pulse');
-                    } else {
-                        document.getElementById('kpi-display').classList.remove('animate-pulse');
-                    }
-                }, 100);
-            }
+            setGameState(prev => ({
+              ...prev,
+              board: newBoard,
+              selectedNode: null,
+              phase: millFormed ? 'REMOVAL' : prev.phase,
+              turn: millFormed ? prev.turn : (prev.turn === 'P1' ? 'P2' : 'P1'), // Simplified turn switch for prototype
+              KPI: { ...prev.KPI, moves: prev.KPI.moves + 1 }
+            }));
+            addLog(gameState.turn, `Move ${from} → ${idx}${millFormed ? ' (MILL!)' : ''}`);
+          }
+        } else if (gameState.phase === 'REMOVAL') {
+           // Simplified removal: just clear clicked piece for prototype flow continuation
+           setGameState(prev => ({
+             ...prev,
+             board: prev.board.map((p, i) => i === idx ? null : p),
+             phase: 'MOVEMENT',
+             turn: prev.turn // Keep same turn after successful removal in this simplified model
+           }));
+           addLog(gameState.turn, `Removed opponent piece at Node ${idx}`);
         }
+      };
 
-        function switchView(view) {
-            // Simple view switching simulation
-            if (view === 'home') {
-                document.getElementById('matchmaking-overlay').style.opacity = '1';
-                document.getElementById('matchmaking-overlay').classList.remove('pointer-events-none');
-            } else if (view === 'leaderboard') {
-                alert('Leaderboard View: ELO Rankings & Tier Progression\n\nTraceable to PO KPI: Day-7 Retention ≥ 35%');
-            }
-        }
+      return (
+        <div className="w-full max-w-6xl mx-auto flex flex-col">
+          <Header />
+          
+          <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start px-4 pb-8">
+            {/* Left Sidebar: P1 */}
+            <aside className="lg:col-span-3 space-y-4 order-2 lg:order-none">
+              <PlayerPanel 
+                player="P1" 
+                piecesLeft={gameState.piecesLeft.P1} 
+                isActive={gameState.turn === 'P1'} 
+                isTeam={false}
+              />
+              
+              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">KPI Mini Dashboard</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-700/50">
+                    <div className="text-xs text-slate-400">Session Time</div>
+                    <div className="text-sm font-mono text-emerald-400">{gameState.KPI.sessionTime}s</div>
+                  </div>
+                  <div className="bg-slate-800/50 p-2 rounded-lg border border-slate-700/50">
+                    <div className="text-xs text-slate-400">Total Moves</div>
+                    <div className="text-sm font-mono text-indigo-400">{gameState.KPI.moves}</div>
+                  </div>
+                </div>
+              </div>
+            </aside>
 
-        // ==================== GAME LOGIC (Server-Driven Validation Simulation) ====================
-        
-        function simulateServerValidation(from, to) {
-            return new Promise((resolve) => {
-                const overlay = document.getElementById('validation-overlay');
-                
-                // Simulate network latency & validation
-                gameState.syncStatus = 'pending';
-                updateUI();
+            {/* Center: Game Board */}
+            <section className="lg:col-span-6 flex flex-col items-center order-1 lg:order-none">
+               <GameBoard 
+                 board={gameState.board}
+                 turn={gameState.turn}
+                 phase={gameState.phase}
+                 selectedNode={gameState.selectedNode}
+                 onNodeClick={handleNodeClick}
+               />
+               
+               <div className="mt-4 text-center">
+                  <p className="text-sm text-slate-500">
+                    Jelenlegi kör: <span className={`font-bold ${gameState.turn === 'P1' ? 'text-indigo-400' : 'text-blue-400'}`}>{gameState.turn}</span> | Fázis: {gameState.phase}
+                  </p>
+               </div>
+            </section>
 
-                setTimeout(() => {
-                    let isValid = false;
+            {/* Right Sidebar: P2 & P3 Team */}
+            <aside className="lg:col-span-3 space-y-4 order-3">
+              <PlayerPanel 
+                player={gameState.turn === 'P1' ? 'P2' : 'P1'} // Simplified logic for team turn display
+                piecesLeft={Math.max(gameState.piecesLeft.P2, gameState.piecesLeft.P3)} 
+                isActive={gameState.turn !== 'P1'} 
+                isTeam={true}
+              />
 
-                    if (gameState.phase === 'placement') {
-                        // Placement: empty spot, correct player hand count
-                        isValid = !gameState.board[to] && gameState.piecesInHand[gameState.currentPlayer] > 0;
-                    } else if (gameState.phase === 'movement' || gameState.phase === 'flying') {
-                        // Movement/Flying: selected piece is current player, to is valid target
-                        isValid = gameState.board[from] === gameState.currentPlayer && 
-                                  (gameState.phase === 'flying' || ADJACENCY[from]?.includes(to));
-                    } else if (gameState.phase === 'removing') {
-                        // Removing: opponent piece not in mill
-                        const opp = gameState.currentPlayer === 'white' ? 'black' : 'white';
-                        const isOppPiece = gameState.board[to] === opp;
-                        const isInMill = MILLS.some(mill => mill.includes(to) && 
-                            mill.every(idx => gameState.board[idx] === opp));
-                        isValid = isOppPiece && !isInMill; // Simplified: allow removing non-mill pieces
-                    }
+               <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Architektúra Státusz</h4>
+                <ul className="space-y-2 text-xs text-slate-400">
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>WebSocket: Connected</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Kafka Producer: Ready</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></span>JPA Entity: Mocked</li>
+                </ul>
+              </div>
+            </aside>
+          </main>
 
-                    if (isValid) {
-                        resolve(true);
-                    } else {
-                        // Simulate validation failure
-                        overlay.style.opacity = '1';
-                        overlay.classList.remove('pointer-events-none');
-                        
-                        setTimeout(() => {
-                            overlay.style.opacity = '0';
-                            overlay.classList.add('pointer-events-none');
-                            gameState.syncStatus = 'live';
-                            updateUI();
-                            resolve(false);
-                        }, 800);
-                    }
-                }, 150 + Math.random() * 200); // Simulate p95 ≤ 2s latency (fast for demo)
-            });
-        }
+          <EventLog logs={gameState.eventLog} />
+        </div>
+      );
+    };
 
-        async function handleNodeClick(idx) {
-            if (gameState.syncStatus === 'reconcile') return; // Block during reconciliation
-
-            const startTime = Date.now();
-
-            if (gameState.phase === 'placement') {
-                // Placement Phase: Click empty spot to place piece
-                if (!gameState.board[idx] && gameState.piecesInHand[gameState.currentPlayer] > 0) {
-                    const valid = await simulateServerValidation(null, idx);
-                    if (valid) {
-                        executeMove(null, idx);
-                    }
-                }
-            } else if (gameState.phase === 'movement' || gameState.phase === 'flying') {
-                // Movement/Flying Phase: Select then move
-                if (!gameState.selectedPiece && gameState.board[idx] === gameState.currentPlayer) {
-                    gameState.selectedPiece = idx;
-                    renderBoard();
-                } else if (gameState.selectedPiece !== null) {
-                    const valid = await simulateServerValidation(gameState.selectedPiece, idx);
-                    if (valid) {
-                        executeMove(gameState.selectedPiece, idx);
-                    }
-                    // Reset selection regardless
-                    gameState.selectedPiece = null;
-                }
-            } else if (gameState.phase === 'removing') {
-                // Removing Phase: Click opponent piece to remove
-                const opp = gameState.currentPlayer === 'white' ? 'black' : 'white';
-                if (gameState.board[idx] === opp) {
-                    const valid = await simulateServerValidation(null, idx);
-                    if (valid) {
-                        executeRemove(idx);
-                    }
-                }
-            }
-
-            // Track T1FM metric for analytics hook simulation
-            if (!t1fmTimer && gameState.phase === 'placement') {
-                t1fmTimer = setInterval(() => { /* already handled in updateUI */ }, 100);
-            }
-        }
-
-        function executeMove(from, to) {
-            // Optimistic Update (Server-Driven Reconciliation will confirm)
-            if (from !== null) gameState.board[from] = null;
-            gameState.board[to] = gameState.currentPlayer;
-
-            if (gameState.phase === 'placement') {
-                gameState.piecesInHand[gameState.currentPlayer]--;
-            }
-
-            gameState.sequenceNumber++;
-            gameState.syncStatus = 'live';
-            
-            // Check for Mill Formation
-            const millFormed = checkMill(to, gameState.currentPlayer);
-            if (millFormed) {
-                triggerMillFormation();
-            } else {
-                endTurn();
-            }
-
-            renderBoard();
-        }
-
-        function executeRemove(idx) {
-            gameState.board[idx] = null;
-            gameState.sequenceNumber++;
-            gameState.syncStatus = 'live';
-            
-            // Check win condition (simplified: if opponent has < 3 pieces and not in flying phase)
-            const opp = gameState.currentPlayer === 'white' ? 'black' : 'white';
-            const oppPiecesCount = gameState.board.filter(p => p === opp).length;
-            
-            endTurn();
-            renderBoard();
-
-            // Show game over if win condition met (simplified for demo)
-            if (oppPiecesCount <= 2 && gameState.phase !== 'flying') {
-                setTimeout(() => showGameOver(gameState.currentPlayer), 300);
-            }
-        }
-
-        function checkMill(idx, player) {
-            return MILLS.some(mill => mill.includes(idx) && 
-                mill.every(pieceIdx => gameState.board[pieceIdx] === player));
-        }
-
-        function triggerMillFormation() {
-            gameState.phase = 'removing';
-            
-            // Identify removable pieces (opponent's, not in mill if possible)
-            const opp = gameState.currentPlayer === 'white' ? 'black' : 'white';
-            const removable = [];
-            
-            gameState.board.forEach((p, i) => {
-                if (p === opp) {
-                    // Check if piece is NOT part of a mill (simplified logic for demo)
-                    const inMill = MILLS.some(mill => mill.includes(i) && 
-                        mill.every(idx => gameState.board[idx] === opp));
-                    removable.push({ idx, inMill });
-                }
-            });
-
-            // Show modal with options
-            const removeModal = document.getElementById('remove-modal');
-            const piecesLayer = document.getElementById('remove-pieces-layer');
-            
-            if (removable.length > 0) {
-                // For demo: allow clicking any opponent piece, but highlight non-mill ones
-                gameState.opponentPieces = removable.map(r => r.idx);
-                
-                // Visual feedback on board for removal targets
-                renderBoard(); // Re-render to show selection state
-                
-                setTimeout(() => {
-                    removeModal.style.opacity = '1';
-                    removeModal.classList.remove('pointer-events-none');
-                }, 200);
-            } else {
-                // Fallback if no removable pieces (shouldn't happen in valid game)
-                endTurn();
-            }
-        }
-
-        function endTurn() {
-            gameState.currentPlayer = gameState.currentPlayer === 'white' ? 'black' : 'white';
-            
-            // Check phase transition: placement → movement → flying → removing (handled internally)
-            if (gameState.piecesInHand.white === 0 && gameState.piecesInHand.black === 0) {
-                if (gameState.phase !== 'movement') {
-                    gameState.phase = 'movement';
-                } else {
-                    // Check if either player has ≤ 3 pieces → flying phase
-                    const whiteCount = gameState.board.filter(p => p === 'white').length;
-                    const blackCount = gameState.board.filter(p => p === 'black').length;
-                    if (whiteCount <= 3 || blackCount <= 3) {
-                        gameState.phase = 'flying';
-                    }
-                }
-            }
-
-            // Clear selection and valid moves for new turn
-            gameState.selectedPiece = null;
-            gameState.validMoves = []; // Server will broadcast VALID_MOVE_SET next turn
-            
-            renderBoard();
-        }
-
-        function showGameOver(winner) {
-            const modal = document.getElementById('game-over-modal');
-            document.getElementById('winner-text').textContent = `${winner.toUpperCase()} WINS!`;
-            
-            const sessionSec = Math.floor((Date.now() - sessionStart) / 1000);
-            const min = Math.floor(sessionSec / 60).toString().padStart(2, '0');
-            const sec = (sessionSec % 60).toString().padStart(2, '0');
-            
-            document.getElementById('mills-count').textContent = gameState.millsFormed;
-            document.getElementById('session-length').textContent = `${min}:${sec}`;
-            document.getElementById('kpi-score').textContent = '98%';
-
-            modal.style.opacity = '1';
-            modal.classList.remove('pointer-events-none');
-            
-            // Animate content
-            setTimeout(() => {
-                modal.querySelector('.modal-content').classList.remove('scale-95');
-                modal.querySelector('.modal-content').classList.add('scale-100');
-            }, 50);
-
-            clearInterval(t1fmTimer);
-        }
-
-        function closeGameOver() {
-            const modal = document.getElementById('game-over-modal');
-            modal.style.opacity = '0';
-            modal.classList.add('pointer-events-none');
-            
-            // Reset game state for demo purposes
-            gameState.board = Array(24).fill(null);
-            gameState.piecesInHand = { white: 9, black: 9 };
-            gameState.phase = 'placement';
-            gameState.currentPlayer = 'white';
-            gameState.sequenceNumber = 0;
-            gameState.millsFormed = 0;
-            sessionStart = Date.now();
-            t1fmTimer = null;
-            
-            renderBoard();
-        }
-
-        // ==================== MATCHMAKING & UI HOOKS ====================
-        function startMatchmaking(mode) {
-            const overlay = document.getElementById('matchmaking-overlay');
-            overlay.style.opacity = '0';
-            setTimeout(() => {
-                overlay.classList.add('pointer-events-none');
-                sessionStart = Date.now();
-                renderBoard();
-                
-                // Simulate matchmaking success with KPI tracking
-                console.log(`[Analytics] Match started: mode=${mode}, sequence=0, timestamp=${new Date().toISOString()}`);
-            }, 300);
-        }
-
-        function claimDaily() {
-            const btn = document.getElementById('daily-reward-btn');
-            btn.textContent = '✅ Claimed!';
-            btn.classList.remove('monetization-hook');
-            btn.classList.add('bg-slate-700', 'text-slate-400');
-            
-            // Simulate monetization hook tracking
-            console.log('[Analytics] Daily reward claimed: idempotency=true, batch_window=500ms');
-            
-            setTimeout(() => {
-                alert('🎁 Napi jutalom sikeresen begyűjtve!\n\nTraceable to PO KPI: Monetization Rate ≥ 8%');
-            }, 200);
-        }
-
-        // ==================== INITIALIZATION ====================
-        document.addEventListener('DOMContentLoaded', () => {
-            renderBoard();
-            
-            // Simulate initial VALID_MOVE_SET broadcast from server for first move
-            setTimeout(() => {
-                gameState.validMoves = POINTS.map((_, i) => !gameState.board[i] ? i : -1).filter(i => i !== -1);
-                renderBoard();
-            }, 500);
-
-            // Keyboard shortcut for testing (debug)
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'r') closeGameOver(); // Reset game on 'R' press
-            });
-        });
-
-    </script>
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
 </body>
 </html>
