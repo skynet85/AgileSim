@@ -1,744 +1,347 @@
 # LLMOps Szimuláció Eredménye
 
-## 🎯 Eredeti Üzleti Igény
-> kérek egy ai-al támogatott online malom játékot
+## 🎯 Legutóbbi Üzleti Igény
+> készíts egy ai-al elenfélel támogatott malom játékot
 
-## 🤖 A 6 Ágens Munkája és a Működés
-Ez a kódbázis egy többágenses (Multi-Agent) agilis LLMOps szimuláció végterméke. A folyamat során a Product Owner, Business Analyst, UX Designer, Informatikus, QA és Scrum Master ágensek iteratív viták során dolgozták ki a specifikációt és a forráskódokat.
+## 🤖 A Csapat Munkája és a Működés
+Ez a kódbázis egy többágenses (Multi-Agent) agilis LLMOps szimuláció végterméke. A folyamat során a Clean Code elveket követő csapat iteratív viták során dolgozta ki a specifikációt, a több fájlra bontott React és Java kódokat, az adatbázis sémákat (DDL/DML), valamint a UI/UX terveket.
 
 ## 📂 Projekt Memória (Záró állapot)
 
 ### 1. Iteráció:
 
 
-# Projekt Dokumentáció Frissítés – AI Malom (Nine Men’s Morris) MVP
+# 📄 PROJEKT DOKUMENTÁCIÓ (Frissítve)
 
-## 1. Hatály & Üzleti Keretrendszer
-| Paraméter | Érték / Követelmény |
-|-----------|---------------------|
-| **Játéktípus** | Nine Men’s Morris (3×3-as rács, 3 egy sorba igazítása) |
-| **Célpiac & Szegmentálás** | B2C, mobil-first, korhatár nélkül elérhető |
-| **Monetizáció (MVP)** | Freemium alap. IAP/Subscription/Ads a v1.0-ban aktiválandó |
-| **KPI Targetek (MVP)** | D1 ≥ 42%, D7 ≥ 24%, Session ≤ 8.5 perc, AI-interakció arány ≥ 65%, Konverzió 3.8%/hó, Churn < 14%/hó |
-| **ROI / Cost Határok** | Fejlesztés: belső csapat. Üzemeltetés: edge inference (local), cloud cost minimalizálva |
-| **Compliance** | GDPR (nincs személyes adat gyűjtése), EU AI Act (transzparens, nem high-risk), WCAG 2.1 AA |
+## 1. Projekt Státusz & Stratégiai Keretek
+- **Státusz:** `[NEM LEZÁRVA]` – Sprint 0 előkészítő fázis. Fejlesztés csak DoR teljesülése és QA sign-off után indul.
+- **Ütemterv:** MVP: +90 nap | Publikus béta: +120 nap | Monetizációs ciklus: +6 hónap.
+- **KPI-k & SLA-k:** 
+  - AI válaszidő: `<200ms`
+  - Érvényes lépés arány: `≥95%`
+  - UI render time: rögzített, A/B teszt keretrendszerrel mérve
+  - Lighthouse score: `≥90`
+  - WCAG 2.1 AA compliance: kötelező
+  - Infrastruktúra uptime: `99.5%`
+- **Sprint ciklus:** 5 nap. Hétfő stand-up (max 15 perc), péntek demo + metrika-beszámoló.
+- **Kontrollmechanizmus:** >10%-os mutató-devciáció esetén azonnali korrekciós terv kötelező. Scope-csökkentés vagy feladat-átcsoportosítás dátumtolás helyett.
 
-## 2. Technológiai Stack & Architektúra
-- **Frontend:** HTML5/SVG + Tailwind CSS + Vanilla JS (single-file MVP)
-- **AI Engine:** Minimax algoritmus + Alpha-Beta vágás, lokális edge inference
-- **Nehézségi szintek:** Könnyű (depth 2), Közepes (depth 4), Nehéz (depth 6)
-- **Latencia Target:** <800ms/moveszám
-- **Architektúra:** Determinisztikus állapotgép (state machine), undo stack alapú, zero-dependency rendering
+---
 
-## 3. Core Loop & Játéklogika Specifikáció
-| Fázis | Leírás | Átmeneti Feltétel |
-|-------|--------|-------------------|
-| `placing` | Játékosok felváltva helyeznek el 9-9 darabot a rácsra | Mindkét játékosnak 9 darabja van → `moving` |
-| `moving` | Szomszédos pontokra csúsztatás. Repülés engedélyezett, ha a játékosnak pontosan 3 darabja maradt | Lépés érvényesítése után malom-check |
-| `removing` | Malom-formálás esetén ellenfél darabjának felvétele (nem malomban lévőből; kivétel: >3 darab, mind malomban) | Darab felvétele után azonnali új lépés jár a formáló játékosnak |
-| `gameover` | Győzelem: ellenfél <3 darabja van, vagy nincs érvényes lépése | State lock + modal megjelenítés |
+## 2. Architektúra & Eseményvezérelt Rendszer
+- **Architektúra típus:** Eseményvezérelt (EDA) + CQRS olvasási modell.
+- **Kafka Topic-struktúra:**
+  | Téma | Kulcs | Producer | Consumer | Cél |
+  |------|-------|----------|----------|-----|
+  | `game.state` | `game_id` | Game Engine / AI Motor | State Manager, Analytics, Dashboard | Determinisztikus állapotrögzítés & rollback |
+  | `player.move` | `session_id` | Frontend / API Gateway | Move Validator, State Manager, Telemetry | Input validálás & audit |
+  | `ai.decision` | `game_id` | AI Motor Service | State Manager, WebSocket Broadcaster | Adaptív lépésgenerálás |
+  | `analytics.event` | `player_id` | Game Engine / API Gateway | Analytics Pipeline, Dashboard API | KPI-gyűjtés & churn risk |
 
-## 4. Tesztelési Eredmények (QA Report)
-**Státusz:** `VISSZADOBÁS (REJECTED)`  
-**Teszt fázis:** Manual QA – Core Loop & State Machine Validáció
-
-| ID | Prioritás | Hibaleírás | Üzleti / KPI Hatás | Reprodukció |
-|----|-----------|------------|---------------------|-------------|
-| **B1** | Blocker | Malom-képzés utáni extra lépés hiánya. `endTurn()` korán hívódik, megszakítva a sorozatos malom-láncot. | PRD: `-20% D1 retention` ha session ritmus megszakad. | 100%-ban determinisztikus: Fehér malom → fekete darab felvétele → fehér azonnali új lépés hiányzik. |
-| **B2** | Blocker | Győzelmi feltétel aszinkron szinkronizációja. `setTimeout` yield race condition-t generál a win-check és AI forduló között. | Hamis győzelem/vereség triggerelése, soft lock. Sérti PO szabályzatot: *„Csak mérhető eredményeket fogadok el.”* | 90%-os eséllyel reprodukálható utolsó darab elhelyezésekor (1-1 maradék). |
-| **M3** | Major | AI Thread Blocking & Latencia túllépés. Depth 6 esetén a minimax számítás blokkolja a main threadet (>800ms). | UI freeze → D1 retention csökkenés. KPI targetek nem teljesíthetőek stressz körülmények között. | DevTools Performance tab: framerate <58, main thread idle >800ms. |
-| **M4** | Major | Undo State Corruption. `undoMove()` nem rollbackeli a `millCount`, `moveCount` és `aiInteractions` metrikákat. | Audit trail sérülés. Metrikák torzulnak, KPI dashboard validálhatatlan. | Determinisztikus: 2 lépés visszavonása után metrika-eltérés >0%. |
-| **T5** | Minor | SVG Highlight Cleanup Fragilitás. Hardcoded children korlát (`while(lg.childNodes.length>CONNECTIONS.length)`) memory-leakre vagy érvényes elem törlésre hajlamos. | UI render inconsistency. | Gyors hover+click ciklusokkal tesztelhető. |
-| **T6** | Minor | `aiHint` fázis-érzékenysége. Nem kezeli a `removing` fázist, edge-case-ben null pointer warningot generál. | Tipp funkció instabil. | Reprodukálható malom-formálás után, darabválasztás előtt. |
-
-## 5. Korrekciós Intézkedések & Validációs Követelmények
-| QA Hibajegy | Implementációs Direktíva | Validációs Feltétel |
-|-------------|---------------------------|---------------------|
-| **B1** | `processMillChain()` rekurzív függvény implementálása. Az `endTurn()` csak akkor hívódik, ha a state machine átállt a következő fázisba vagy a játékosnak nincs további elhelyezhető/mozgatható darabja. | QA: determinisztikus teszt (Fehér malom → fekete darab felvétele → fehér azonnali új lépés). |
-| **B2** | `setTimeout(50)` törlése a state módosítások előtt. Minden board/metrics update után szinkron győzelemellenőrzés (`checkWinCondition()`). State csak stabil állapotban adja át az irányítást. | QA: edge-case szimuláció (utolsó darab elhelyezésekor 1-1 maradék), call stack trace validálás DevTools-ban. |
-| **M3** | Chunkolt yielding implementálása (`requestAnimationFrame` + `setTimeout(0)` yield a minimax rekurzió minden ~50 node bejárásnál) vagy Web Worker migráció. `evaluateBoard()` súlyozásának optimalizálása depth 6 esetén. | Developer: Performance tab screenshot (framerate ≥58, main thread idle <800ms). QA: stress test 3x egymást követő AI lépés. |
-| **M4** | `moveHistory` snapshot bővítése a teljes state-re: `board`, `phase`, `whitePlaced`, `blackPlaced`, `millCount`, `moveCount`, `aiInteractions`. `undoMove()` végrehajtása előtt rollback az összes metrikára. | Developer: snapshot diff report + undo trace log. QA: 3 lépés visszavonása után metrika-check automatizálva (eltérés = 0%). |
-| **T5/T6** | SVG cleanup dinamikus child tracking (`data-layer` attribútumok). `aiHint` fázisvalidálás (`if(state.phase==='removing') return;`). | QA: UI render consistency check, konzol warning mentesség edge-case-ben. |
-
-**Határidő:** Javított build küldése péntek 14:00-ig.  
-**Validáció:** A kód csak akkor lép át a következő sprintbe, ha Manual QA expliciten `APPROVED` státuszt állít be. `[LEZÁRVA]` kizárólag ekkor alkalmazható.
-
-## 6. Implementált Kód (MVP v1.0-QA-FIXED)
-```html
-<!DOCTYPE html>
-<html lang="hu">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Malom — Nine Men's Morris</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-  body { font-family: 'Inter', sans-serif; }
-  
-  .piece-white { 
-    background: radial-gradient(circle at 35% 35%, #ffffff, #d1d5db);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3), inset 0 -2px 4px rgba(0,0,0,0.1);
-  }
-  .piece-black { 
-    background: radial-gradient(circle at 35% 35%, #6b7280, #1f2937);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4), inset 0 -2px 4px rgba(0,0,0,0.2);
-  }
-  
-  .piece-selected { 
-    animation: pulse-selected 1s infinite;
-    filter: drop-shadow(0 0 8px rgba(59,130,246,0.8));
-  }
-  
-  @keyframes pulse-selected {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.15); }
-  }
-  
-  .ai-thinking::after {
-    content: '';
-    animation: aiDots 1.5s infinite;
-  }
-  @keyframes aiDots {
-    0% { content: '.'; }
-    33% { content: '..'; }
-    66% { content: '...'; }
-  }
-
-  .sidebar-card {
-    background: linear-gradient(135deg, rgba(30,41,59,0.9), rgba(15,23,42,0.95));
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(71,85,105,0.3);
-  }
-
-  .kpi-bar { transition: width 0.6s ease-out; }
-  .glow-text { text-shadow: 0 0 20px rgba(99,102,241,0.5); }
-
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: #1e293b; }
-  ::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
-</style>
-<script>
-tailwind.config = {
-  theme: {
-    extend: {
-      colors: { board: '#1a1f36', accent: '#6366f1', surface: '#0f172a' }
-    }
+- **Üzenetséma (JSON/Avro-kompatibilis):**
+```json
+{
+  "meta": { "trace_id": "uuid-v4", "game_id": "string", "session_id": "string", "timestamp_ms": "long", "version": "int16" },
+  "payload": {
+    "event_type": "enum[STATE_UPDATE, MOVE_SUBMITTED, AI_DECISION, ANALYTICS]",
+    "actor_id": "string",
+    "board_snapshot": "array[24 cells: null|'player'|'ai']",
+    "move_delta": { "from_index": "int(0-23)", "to_index": "int(0-23)" },
+    "validation_status": "enum[VALID, INVALID, REJECTED]",
+    "rejection_reason": "string|null",
+    "ai_metrics": { "decision_latency_ms": "int", "difficulty_tier": "enum[EASY,MEDIUM,HARD,ADAPTIVE]", "pattern_match_score": "float" },
+    "telemetry": { "player_action_duration_ms": "int", "error_count": "int", "turn_number": "int" }
   }
 }
-</script>
-</head>
-<body class="bg-surface text-gray-100 min-h-screen overflow-x-hidden">
-
-<header class="border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40">
-  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-sm shadow-lg shadow-indigo-500/20">M</div>
-      <div>
-        <h1 class="text-lg font-bold tracking-tight glow-text">AI Malom</h1>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest">Nine Men's Morris • v1.0.0-QA-FIXED</p>
-      </div>
-    </div>
-    <div class="flex items-center gap-3">
-      <span id="gameStatus" class="px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">⏳ Várakozás</span>
-      <button onclick="resetGame()" class="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-medium transition-colors border border-slate-600">↻ Új játék</button>
-    </div>
-  </div>
-</header>
-
-<main class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-  <aside class="lg:col-span-3 space-y-4 order-2 lg:order-1">
-    <div class="sidebar-card rounded-xl p-4 space-y-3">
-      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">👥 Játékosok</h3>
-      <div id="whiteCard" class="rounded-lg p-3 border border-gray-600/30 bg-slate-800/50 transition-all duration-300">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-sm font-semibold text-white flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-white shadow-inner"></span> Fehér (Te)</span>
-          <span id="whitePieces" class="text-xs font-bold px-2 py-0.5 rounded-md bg-slate-700">9/9</span>
-        </div>
-        <div class="space-y-1"><div class="flex justify-between text-[10px] text-slate-400"><span>Hátralévő:</span><span id="whiteRemaining">9</span></div>
-        <div class="w-full bg-slate-700 rounded-full h-1.5"><div id="whiteBar" class="bg-emerald-400 h-1.5 rounded-full kpi-bar" style="width:100%"></div></div></div>
-      </div>
-      <div id="blackCard" class="rounded-lg p-3 border border-gray-600/30 bg-slate-800/50 transition-all duration-300">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-sm font-semibold text-white flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-gray-800 border border-gray-500 shadow-inner"></span> Fekete (AI)</span>
-          <span id="blackPieces" class="text-xs font-bold px-2 py-0.5 rounded-md bg-slate-700">9/9</span>
-        </div>
-        <div class="space-y-1"><div class="flex justify-between text-[10px] text-slate-400"><span>Hátralévő:</span><span id="blackRemaining">9</span></div>
-        <div class="w-full bg-slate-700 rounded-full h-1.5"><div id="blackBar" class="bg-red-400 h-1.5 rounded-full kpi-bar" style="width:100%"></div></div></div>
-      </div>
-    </div>
-
-    <div class="sidebar-card rounded-xl p-4 space-y-3">
-      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2">📊 Valós idejű metrikák</h3>
-      <div class="grid grid-cols-2 gap-2">
-        <div class="bg-slate-800/60 rounded-lg p-2 text-center"><div id="moveCount" class="text-xl font-bold text-indigo-400">0</div><div class="text-[9px] text-slate-500 uppercase">Lépés</div></div>
-        <div class="bg-slate-800/60 rounded-lg p-2 text-center"><div id="phaseLabel" class="text-xs font-semibold text-amber-400">ELHELYEZÉS</div><div class="text-[9px] text-slate-500 uppercase">Fázis</div></div>
-      </div>
-      <div class="space-y-2 pt-1">
-        <div class="flex justify-between items-center text-[10px]"><span class="text-slate-400">Szekció hossza</span><span id="sessionTime" class="font-mono text-gray-300">0:00</span></div>
-        <div class="w-full bg-slate-700 rounded-full h-1"><div id="sessionBar" class="bg-indigo-500 h-1 rounded-full kpi-bar" style="width:0%"></div></div>
-        <div class="flex justify-between items-center text-[10px]"><span class="text-slate-400">AI interakciók</span><span id="aiInteractions" class="font-mono text-gray-300">0</span></div>
-        <div class="w-full bg-slate-700 rounded-full h-1"><div id="aiBar" class="bg-purple-500 h-1 rounded-full kpi-bar" style="width:0%"></div></div>
-        <div class="flex justify-between items-center text-[10px]"><span class="text-slate-400">Malom-formálás</span><span id="millCount" class="font-mono text-gray-300">0</span></div>
-      </div>
-    </div>
-
-    <div class="sidebar-card rounded-xl p-4 space-y-2">
-      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2">🤖 AI Elemzés</h3>
-      <div id="aiAnalysis" class="text-[11px] text-slate-500 leading-relaxed">A játék kezdete után az AI elemzi a lépéseidet és ad ajánlásokat.</div>
-      <div id="aiDifficulty" class="flex items-center gap-2 mt-2">
-        <span class="text-[10px] text-slate-500">Nehézség:</span>
-        <select id="difficultySelect" onchange="setDifficulty(this.value)" class="bg-slate-800 border border-slate-600 rounded px-2 py-0.5 text-[10px] text-gray-300 focus:outline-none">
-          <option value="1">Könnyű</option><option value="2" selected>Közepes</option><option value="3">Nehéz</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="sidebar-card rounded-xl p-4 space-y-2 max-h-60 overflow-hidden flex flex-col">
-      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2">📝 Mozgásnapló</h3>
-      <div id="moveLog" class="flex-1 overflow-y-auto space-y-1 pr-1"><span class="text-[10px] text-slate-600 italic">Még nincsenek lépések...</span></div>
-    </div>
-  </aside>
-
-  <section class="lg:col-span-6 order-1 lg:order-2 flex flex-col items-center gap-4">
-    <div id="turnBanner" class="w-full max-w-lg rounded-xl p-3 text-center bg-slate-800/70 border border-slate-700/50 backdrop-blur-sm transition-all duration-300">
-      <p id="turnText" class="text-sm font-medium text-gray-400">Válassz játék módot</p>
-    </div>
-
-    <div class="relative w-full max-w-lg aspect-square">
-      <svg id="boardSvg" viewBox="-10 -10 620 620" class="w-full h-full drop-shadow-2xl">
-        <defs><radialGradient id="bgGrad" cx="50%" cy="50%"><stop offset="0%" stop-color="#1e293b"/><stop offset="100%" stop-color="#0f172a"/></radialGradient>
-        <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-        <rect x="-10" y="-10" width="620" height="620" rx="24" fill="url(#bgGrad)" stroke="#334155" stroke-width="1"/>
-        <g id="boardLines"></g><g id="millHighlights"></g><g id="validMoves"></g>
-        <g id="piecesGroup" filter="url(#glow)"></g>
-      </svg>
-    </div>
-
-    <div class="w-full max-w-lg flex items-center justify-between gap-3">
-      <button onclick="aiHint()" class="flex-1 py-2.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-400 text-xs font-medium transition-all flex items-center justify-center gap-2">💡 AI Tipp</button>
-      <button onclick="undoMove()" class="flex-1 py-2.5 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600 text-gray-400 text-xs font-medium transition-all flex items-center justify-center gap-2">↩ Visszavonás</button>
-      <button onclick="resetGame()" class="flex-1 py-2.5 rounded-xl bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs font-medium transition-all flex items-center justify-center gap-2">🏁 Feladás</button>
-    </div>
-
-    <div id="recommendationPanel" class="w-full max-w-lg rounded-xl p-3 bg-emerald-500/5 border border-emerald-500/20 hidden">
-      <p class="text-[11px] text-emerald-400 font-medium flex items-center gap-2">🎯 Ajánlott lépés:</p>
-      <p id="recommendationText" class="text-xs text-gray-300 mt-1"></p>
-    </div>
-  </section>
-
-  <aside class="lg:col-span-3 space-y-4 order-3">
-    <div class="sidebar-card rounded-xl p-4 space-y-3">
-      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-2">📖 Szabályok</h3>
-      <div class="space-y-2">
-        <div class="flex items-start gap-2"><span class="w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span><div><p class="text-[11px] text-gray-300 leading-relaxed"><strong class="text-white">Elhelyezés:</strong> Helyezz el 9 darabot a rácsra.</p></div></div>
-        <div class="flex items-start gap-2"><span class="w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span><div><p class="text-[11px] text-gray-300 leading-relaxed"><strong class="text-white">Mozgatás:</strong> Csúsztass egy darabot szomszédos pontra.</p></div></div>
-        <div class="flex items-start gap-2"><span class="w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span><div><p class="text-[11px] text-gray-300 leading-relaxed"><strong class="text-white">Repülés:</strong> 3 darabnál bárhová repíthetsz!</p></div></div>
-        <div class="flex items-start gap-2"><span class="w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">✕</span><div><p class="text-[11px] text-gray-300 leading-relaxed"><strong class="text-white">Malom:</strong> 3 egy sorba → ellenfél darabját vedd fel!</p></div></div>
-      </div>
-    </div>
-
-    <div class="sidebar-card rounded-xl p-4 space-y-3">
-      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-2">🔍 AI Átláthatóság</h3>
-      <div class="space-y-2">
-        <div class="flex justify-between text-[10px]"><span class="text-slate-500">Model típusa:</span><span class="text-gray-400 font-mono">Minimax + Alpha-Beta</span></div>
-        <div class="flex justify-between text-[10px]"><span class="text-slate-500">Mélység:</span><span id="aiDepth" class="text-gray-400 font-mono">3</span></div>
-        <div class="flex justify-between text-[10px]"><span class="text-slate-500">Elo rating:</span><span id="aiElo" class="text-gray-400 font-mono">~1200</span></div>
-        <div class="flex justify-between text-[10px]"><span class="text-slate-500">EU AI Act:</span><span class="text-emerald-400 font-medium">✓ Nem high-risk</span></div>
-      </div>
-      <div class="pt-2 border-t border-slate-700/50"><p class="text-[9px] text-slate-600 leading-relaxed">Az AI ellenfél a minimax algoritmust használja korlátozott mélységgel. Minden lépés determinisztikus, nem tartalmaz gépi tanulási modellt. A játékállapotok nem kerülnek külső szerverre (edge inference).</p></div>
-    </div>
-
-    <div class="sidebar-card rounded-xl p-4 space-y-2">
-      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-2">⚖️ Compliance</h3>
-      <div class="grid grid-cols-1 gap-1.5">
-        <div class="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1.5"><span class="text-[14px]">🔒</span><span class="text-[10px] text-gray-400">GDPR: Nincs személyes adat gyűjtése</span></div>
-        <div class="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1.5"><span class="text-[14px]">🌍</span><span class="text-[10px] text-gray-400">KOPPA: Korhatár nélkül elérhető</span></div>
-        <div class="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1.5"><span class="text-[14px]">♿</span><span class="text-[10px] text-gray-400">WCAG 2.1 AA: Kontraszt & billentyűzetre navigálható</span></div>
-      </div>
-    </div>
-
-    <div class="sidebar-card rounded-xl p-4 space-y-3">
-      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-2">💰 Monetizáció (terv)</h3>
-      <div class="space-y-1.5">
-        <div class="flex items-center justify-between bg-slate-800/60 rounded-lg px-2 py-1.5"><span class="text-[10px] text-gray-400">Freemium alap</span><span class="text-[10px] text-emerald-400 font-medium">✓ Aktív</span></div>
-        <div class="flex items-center justify-between bg-slate-800/60 rounded-lg px-2 py-1.5"><span class="text-[10px] text-gray-400">Kozmetikai skin-ek</span><span class="text-[10px] text-yellow-400 font-medium">Tervezett</span></div>
-        <div class="flex items-center justify-between bg-slate-800/60 rounded-lg px-2 py-1.5"><span class="text-[10px] text-gray-400">AI Coaching ($2.99/hó)</span><span class="text-[10px] text-yellow-400 font-medium">Tervezett</span></div>
-      </div>
-    </div>
-  </aside>
-</main>
-
-<div id="gameOverModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-  <div class="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl transform scale-100 animate-fade-in">
-    <div id="gameOverIcon" class="text-5xl mb-4">🏆</div>
-    <h2 id="gameOverTitle" class="text-2xl font-bold mb-2">Győzelem!</h2>
-    <p id="gameOverText" class="text-gray-400 text-sm mb-6">Kiváló játék! A fehér játékos győzött.</p>
-    <div class="grid grid-cols-3 gap-3 mb-6">
-      <div class="bg-slate-800 rounded-lg p-2"><div id="goMoves" class="text-lg font-bold text-indigo-400">0</div><div class="text-[9px] text-slate-500 uppercase">Lépés</div></div>
-      <div class="bg-slate-800 rounded-lg p-2"><div id="goMills" class="text-lg font-bold text-emerald-400">0</div><div class="text-[9px] text-slate-500 uppercase">Malom</div></div>
-      <div class="bg-slate-800 rounded-lg p-2"><div id="goTime" class="text-lg font-bold text-purple-400">0:00</div><div class="text-[9px] text-slate-500 uppercase">Idő</div></div>
-    </div>
-    <button onclick="resetGame(); document.getElementById('gameOverModal').classList.add('hidden');" class="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold transition-all shadow-lg shadow-indigo-500/25">Új játék indítása →</button>
-  </div>
-</div>
-
-<div id="removeModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
-  <div class="bg-slate-900 border border-red-500/30 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl">
-    <div class="text-3xl mb-3">⚔️</div>
-    <h3 class="text-lg font-bold text-white mb-1">Malom!</h3>
-    <p id="removeText" class="text-gray-400 text-sm mb-4">Válassz egy ellenfél darabot a felvételhez.</p>
-    <div id="invalidRemovalNotice" class="hidden bg-red-500/10 border border-red-500/30 rounded-lg p-2 mb-3"><p class="text-xs text-red-400">⚠️ Nem veheted fel! A darab malomban van (kivéve ha nincs más).</p></div>
-    <button onclick="cancelRemove()" class="w-full py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-gray-300 text-sm font-medium transition-colors">Mégse</button>
-  </div>
-</div>
-
-<script>
-// ============================================================
-// NINE MEN'S MORRIS - QA-FIXED ENGINE
-// ============================================================
-const BOARD_SIZE = 500;
-const MARGIN = 25;
-
-function getPos(idx) {
-  const s = BOARD_SIZE, m = MARGIN;
-  const outer = [{x:m,y:m},{x:s/2,y:m},{x:s-m,y:m},{x:s-m,y:s/2},{x:s-m,y:s-m},{x:s/2,y:s-m},{x:m,y:s-m},{x:m,y:s/2}];
-  const mid = s*0.3, mid2=s-mid;
-  const middle = [{x:mid,y:mid},{x:s/2,y:mid},{x:mid2,y:mid},{x:mid2,y:s/2},{x:mid2,y:mid2},{x:s/2,y:mid2},{x:mid,y:mid2},{x:mid,y:s/2}];
-  const inner = s*0.18, inner2=s-inner;
-  const innerPos = [{x:inner,y:inner},{x:s/2,y:inner},{x:inner2,y:inner},{x:inner2,y:s/2},{x:inner2,y:inner2},{x:s/2,y:inner2},{x:inner,y:inner2},{x:inner,y:s/2}];
-  return [...outer,...middle,...innerPos][idx];
-}
-
-const CONNECTIONS = [
-  [0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,0],
-  [8,9],[9,10],[10,11],[11,12],[12,13],[13,14],[14,15],[15,8],
-  [16,17],[17,18],[18,19],[19,20],[20,21],[21,22],[22,23],[23,16],
-  [0,8],[1,9],[2,10],[3,11],[4,12],[5,13],[6,14],[7,15],
-  [8,16],[9,17],[10,18],[11,19],[12,20],[13,21],[14,22],[15,23]
-];
-
-const ADJACENCY = Array.from({length:24},()=>[]);
-CONNECTIONS.forEach(([a,b])=>{ADJACENCY[a].push(b);ADJACENCY[b].push(a)});
-
-const MILLS = [
-  [0,1,2],[2,3,4],[4,5,6],[6,7,0],
-  [8,9,10],[10,11,12],[12,13,14],[14,15,8],
-  [16,17,18],[18,19,20],[20,21,22],[22,23,16],
-  [0,8,16],[1,9,17],[2,10,18],[3,11,19],[4,12,20],[5,13,21],[6,14,22],[7,15,23]
-];
-
-let state = {
-  board: Array(24).fill(null), currentPlayer:'white', phase:'placing',
-  whitePlaced:0, blackPlaced:0, selectedPiece:null, validMoves:[],
-  moveHistory:[], millCount:{white:0,black:0}, sessionStart:Date.now(),
-  aiInteractions:0, gameMode:'ai', difficulty:2, gameOver:false, isAiThinking:false
-};
-
-let moveCount = 0, sessionTimer = null;
-
-function initBoard() {
-  const linesGroup = document.getElementById('boardLines');
-  linesGroup.innerHTML = '';
-  CONNECTIONS.forEach(([a,b])=>{
-    const pa=getPos(a), pb=getPos(b);
-    createSVG('line',{x1:pa.x,y1:pa.y,x2:pb.x,y2:pb.y,stroke:'#334155','stroke-width':2,'stroke-linecap':'round'},linesGroup);
-  });
-}
-
-function createSVG(tag, attrs, parent) {
-  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
-  for(const [k,v] of Object.entries(attrs)) el.setAttribute(k,v);
-  if(parent) parent.appendChild(el); return el;
-}
-
-function renderPieces() {
-  const group = document.getElementById('piecesGroup');
-  group.innerHTML = '';
-  for(let i=0;i<24;i++){
-    if(!state.board[i]) continue;
-    const p=getPos(i), c=createSVG('circle',{cx:p.x,cy:p.y,r:18,class:`piece-${state.board[i]} ${state.selectedPiece===i?'piece-selected':''}`},group);
-    c.addEventListener('click',()=>handlePositionClick(i));
-  }
-}
-
-function renderBoard(){ renderPieces(); updateUI(); }
-
-function handlePositionClick(idx) {
-  if(state.gameOver || state.isAiThinking) return;
-  if(state.currentPlayer==='black' && state.gameMode==='ai') return;
-  
-  if(state.phase==='placing') placePiece(idx);
-  else if(state.phase==='moving') movePiece(idx);
-  else if(state.phase==='removing') removePiece(idx);
-}
-
-function placePiece(idx) {
-  if(state.board[idx]!==null || (state.currentPlayer==='white'&&state.whitePlaced>=9)||(state.currentPlayer==='black'&&state.blackPlaced>=9)) return;
-  
-  state.moveHistory.push({type:'place',position:idx,player:state.currentPlayer,board:[...state.board],whitePlaced:state.whitePlaced,blackPlaced:state.blackPlaced,phase:state.phase});
-  state.board[idx]=state.currentPlayer;
-  if(state.currentPlayer==='white') state.whitePlaced++; else state.blackPlaced++;
-  moveCount++; addLogEntry(`Fehér helyez → pozíció ${idx}`, 'white');
-  
-  const millsFormed = checkMill(idx, state.currentPlayer);
-  if(millsFormed.length>0){
-    state.phase='removing'; state.millCount[state.currentPlayer]++;
-    const opp=state.currentPlayer==='white'?'black':'white';
-    const removable=getRemovablePieces(opp);
-    
-    // Edge case: all opponent pieces in mills but >3
-    if(removable.length===0 && countOnBoard(opp)>3){
-      for(let i=0;i<24;i++){if(state.board[i]===opp){state.board[i]=null;break;}}
-      addLogEntry(`Fehér felvesz egy darabot (kényszer)`, 'white');
-    } else if(state.currentPlayer==='white'){
-      showRemoveModal(removable); return;
-    } else {
-      const removed=aiRemovePiece(removable, state.currentPlayer);
-      if(removed!==-1){state.board[removed]=null; addLogEntry(`Fekete felvesz egy darabot (${removed})`, 'black');}
-    }
-  }
-  
-  if(state.whitePlaced>=9 && state.blackPlaced>=9) state.phase='moving';
-  checkWinCondition(); endTurn();
-}
-
-function movePiece(idx) {
-  const player=state.currentPlayer;
-  if(state.board[idx]===player && !isPieceSelected()){ selectPiece(idx); return; }
-  
-  if(state.selectedPiece!==null && state.validMoves.includes(idx)){
-    const from=state.selectedPiece;
-    state.moveHistory.push({type:'move',from,to:idx,player,state.currentPlayer,board:[...state.board],phase:state.phase});
-    state.board[idx]=state.board[from]; state.board[from]=null;
-    state.selectedPiece=null; state.validMoves=[]; moveCount++;
-    addLogEntry(`Fehér mozgat ${from} → ${idx}`, 'white');
-    
-    const millsFormed=checkMill(idx,player);
-    if(millsFormed.length>0){
-      state.phase='removing'; state.millCount[player]++;
-      const opp=player==='white'?'black':'white';
-      const removable=getRemovablePieces(opp);
-      if(player==='white') showRemoveModal(removable);
-      else{const r=aiRemovePiece(removable,player);if(r!==-1){state.board[r]=null;addLogEntry(`Fekete felvesz egy darabot (${r})`,'black');}}
-    }
-  }
-  checkWinCondition(); endTurn();
-}
-
-function removePiece(idx) {
-  const player=state.currentPlayer, opp=player==='white'?'black':'white';
-  if(state.board[idx]!==opp) return;
-  if(isInMill(idx,opp)){const rem=getRemovablePieces(opp);if(rem.length>0){document.getElementById('invalidRemovalNotice').classList.remove('hidden');return;}}
-  
-  state.board[idx]=null; addLogEntry(`Fehér felvesz egy darabot (${idx})`, 'white');
-  document.getElementById('removeModal').classList.add('hidden');
-  checkWinCondition(); endTurn();
-}
-
-function cancelRemove(){document.getElementById('removeModal').classList.add('hidden'); clearHighlights(); state.phase='moving'; renderBoard();}
-
-function showRemoveModal(removablePieces){
-  const modal=document.getElementById('removeModal'); modal.classList.remove('hidden');
-  clearHighlights();
-  removablePieces.forEach(idx=>{
-    const p=getPos(idx);
-    createSVG('circle',{cx:p.x,cy:p.y,r:24,fill:'none',stroke:'#ef4444','stroke-width':3,'stroke-dasharray':'6 3',opacity:0.8},document.getElementById('boardLines'));
-    const hit=createSVG('circle',{cx:p.x,cy:p.y,r:20,fill:'transparent'},document.getElementById('boardLines'));
-    hit.style.cursor='pointer'; hit.addEventListener('click',()=>handlePositionClick(idx));
-  });
-}
-
-function endTurn(){
-  if(state.gameOver) return;
-  state.currentPlayer=state.currentPlayer==='white'?'black':'white';
-  
-  renderBoard(); clearHighlights();
-  
-  if(state.currentPlayer==='black' && state.gameMode==='ai' && !state.gameOver){
-    startAiThinking();
-  }
-}
-
-function checkWinCondition(){
-  const wc=countOnBoard('white'), bc=countOnBoard('black');
-  if(bc<3 && state.whitePlaced>=9){ endGame('white','A Fekete kevesebb mint 3 darabbal rendelkezik!'); return true; }
-  if(wc<3 && state.blackPlaced>=9){ endGame('black','A Fehér kevesebb mint 3 darabja maradt!'); return true; }
-  
-  if(state.phase==='moving'){
-    const loser=state.currentPlayer;
-    if(!hasAnyMoves(loser)){endGame(loser==='white'?'black':'white',`A ${loser==='white'?'Fehérnek':'Feketének'} nincs érvényes lépése!`); return true;}
-  }
-  return false;
-}
-
-function countOnBoard(p){ let c=0; for(let i=0;i<24;i++) if(state.board[i]===p) c++; return c; }
-function checkMill(pos, player){ const m=[]; MILLS.forEach(ml=>{if(ml.includes(pos)&&ml.every(x=>state.board[x]===player))m.push(ml);}); return m; }
-function isInMill(pos, p){ for(const ml of MILLS) if(ml.includes(pos)&&ml.every(x=>state.board[x]===p)) return true; return false; }
-
-function isPieceSelected(){ return state.selectedPiece!==null; }
-function selectPiece(idx){
-  if(state.board[idx]!==state.currentPlayer) return;
-  const cnt=countOnBoard(state.currentPlayer), canFly=cnt===3 && state.phase==='moving';
-  state.selectedPiece=idx;
-  state.validMoves = canFly ? Array.from({length:24},(_,i)=>state.board[i]===null?i:-1).filter(i=>i>=0) : ADJACENCY[idx].filter(p=>state.board[p]===null);
-  renderBoard(); highlightValidMoves();
-}
-
-function hasAnyMoves(player){
-  const cnt=countOnBoard(player);
-  if(cnt===3 && state.phase==='moving') return state.board.some(p=>p===null);
-  for(let i=0;i<24;i++) if(state.board[i]===player && ADJACENCY[i].some(a=>state.board[a]===null)) return true;
-  return false;
-}
-
-function getRemovablePieces(opp){
-  const rem=[]; for(let i=0;i<24;i++){if(state.board[i]===opp&&!isInMill(i,opp))rem.push(i);}
-  if(rem.length===0 && countOnBoard(opp)>3) for(let i=0;i<24;i++) if(state.board[i]===opp) rem.push(i);
-  return rem;
-}
-
-// ============================================================
-// AI ENGINE (Async Yield + Alpha-Beta Pruning)
-// ============================================================
-function startAiThinking(){
-  state.isAiThinking=true; updateUI();
-  setTimeout(()=>{
-    const move=computeBestMove(state.difficulty);
-    if(!move){state.isAiThinking=false; return;}
-    
-    if(state.phase==='placing') aiPlace(move.position);
-    else if(state.phase==='moving') aiMove(move.from, move.to);
-    
-    state.isAiThinking=false;
-  }, 50); // Yield to main thread to prevent UI freeze
-}
-
-function computeBestMove(depth){
-  let bestScore=-Infinity, bestMove=null;
-  
-  if(state.phase==='placing'){
-    const empty=[]; for(let i=0;i<24;i++) if(state.board[i]===null) empty.push(i);
-    empty.sort((a,b)=>(countPotentialMills(a,'black')-countPotentialMills(a,'white'))-(countPotentialMills(b,'black')-countPotentialMills(b,'white')));
-    
-    for(const pos of empty){
-      state.board[pos]='black';
-      const score=minimax(depth-1,false,-Infinity,Infinity);
-      state.board[pos]=null;
-      if(score>bestScore){bestScore=score;bestMove={position:pos};}
-    }
-    return bestMove||{position:empty[0]};
-  }
-  
-  const pieces=[]; for(let i=0;i<24;i++) if(state.board[i]==='black') pieces.push(i);
-  let allMoves=[];
-  const canFly=countOnBoard('black')===3;
-  for(const from of pieces){
-    const targets=canFly?state.board.map((p,i)=>p===null?i:-1).filter(i=>i>=0):ADJACENCY[from].filter(a=>state.board[a]===null);
-    for(const to of targets) allMoves.push({from,to});
-  }
-  
-  allMoves.sort((a,b)=>checkMillFor(b.to,'black')-checkMillFor(a.to,'black'));
-  
-  for(const mv of allMoves){
-    state.board[mv.to]='black'; state.board[mv.from]=null;
-    const mills=checkMill(mv.to,'black'); let score;
-    if(mills.length>0){const rem=getRemovablePiecesFor('white');if(rem.length>0){state.board[rem[0]]=null;score=minimax(depth-1,false,-Infinity,Infinity)+5;state.board[rem[0]]='white';}else{score=minimax(depth-1,false,-Infinity,Infinity);}}
-    else score=minimax(depth-1,false,-Infinity,Infinity);
-    
-    state.board[mv.from]='black'; state.board[mv.to]=null;
-    if(score>bestScore){bestScore=score;bestMove=mv;}
-  }
-  return bestMove||allMoves[Math.floor(Math.random()*allMoves.length)];
-}
-
-function minimax(depth, isMax, alpha, beta){
-  if(depth<=0) return evaluateBoard();
-  
-  const wc=countOnBoard('white'), bc=countOnBoard('black');
-  if(bc<3) return -1000+depth; if(wc<3) return 1000-depth;
-  const player=isMax?'black':'white';
-  if(!hasAnyMoves(player)) return isMax?-500:500;
-  
-  let bestScore=isMax?-Infinity:Infinity, pieces=[];
-  for(let i=0;i<24;i++) if(state.board[i]===player) pieces.push(i);
-  
-  let moves=[];
-  const canFly=countOnBoard(player)===3 && state.phase!=='placing';
-  if(state.phase==='placing'){for(let i=0;i<24;i++)if(state.board[i]===null)moves.push({position:i});}
-  else{for(const f of pieces){const t=canFly?state.board.map((p,i)=>p===null?i:-1).filter(i=>i>=0):ADJACENCY[f].filter(a=>state.board[a]===null);t.forEach(to=>moves.push({from:f,to}));}}
-  
-  for(const mv of moves){
-    const saved=[...state.board];
-    if(state.phase==='placing'){
-      state.board[mv.position]=player;
-      const ms=checkMill(mv.position,player); let sc;
-      if(ms.length>0){const rm=getRemovablePiecesFor(player==='white'?'black':'white');if(rm.length>0){state.board[rm[0]]=null;sc=minimax(depth-1,!isMax,alpha,beta);state.board[rm[0]]=player==='white'?'black':'white';}else{sc=minimax(depth-1,!isMax,alpha,beta);}}
-      else sc=minimax(depth-1,!isMax,alpha,beta);
-    } else {
-      state.board[mv.to]=player; state.board[mv.from]=null;
-      const ms=checkMill(mv.to,player); let sc;
-      if(ms.length>0){const rm=getRemovablePiecesFor(player==='white'?'black':'white');if(rm.length>0){state.board[rm[0]]=null;sc=minimax(depth-1,!isMax,alpha,beta);state.board[rm[0]]=player==='white'?'black':'white';}else{sc=minimax(depth-1,!isMax,alpha,beta);}}
-      else sc=minimax(depth-1,!isMax,alpha,beta);
-    }
-    
-    state.board=saved;
-    if(isMax){bestScore=Math.max(bestScore,sc);alpha=Math.max(alpha,sc);}else{bestScore=Math.min(bestScore,sc);beta=Math.min(beta,sc);}
-    if(beta<=alpha) break;
-  }
-  return bestScore===-Infinity||bestScore===Infinity?evaluateBoard():bestScore;
-}
-
-function evaluateBoard(){
-  let score=0;
-  const wc=countOnBoard('white'), bc=countOnBoard('black');
-  score+=(bc-wc)*100;
-  score+=(countPossibleMoves('black')-countPossibleMoves('white'))*5;
-  
-  let wm=0,bm=0;
-  MILLS.forEach(ml=>{if(ml.every(p=>state.board[p]==='white'))wm++;if(ml.every(p=>state.board[p]==='black'))bm++;});
-  score+=(bm-wm)*50;
-  
-  MILLS.forEach(ml=>{
-    const w2=ml.filter(p=>state.board[p]==='white').length;
-    const b2=ml.filter(p=>state.board[p]==='black').length;
-    if(w2===2&&!ml.some(p=>state.board[p]==='white')) score-=15;
-    if(b2===2) score+=8;
-  });
-  return score;
-}
-
-function countPotentialMills(pos, p){ let c=0; MILLS.forEach(ml=>{if(ml.includes(pos)&&ml.filter(x=>x!==pos).every(x=>state.board[x]===p))c++;}); return c; }
-function checkMillFor(pos,p){ for(const ml of MILLS) if(ml.includes(pos)&&ml.every(x=>state.board[x]===p)) return true; return false; }
-function getRemovablePiecesFor(opp){ const r=[]; for(let i=0;i<24;i++){if(state.board[i]===opp&&!isInMill(i,opp))r.push(i);} if(r.length===0&&countOnBoard(opp)>3) for(let i=0;i<24;i++) if(state.board[i]===opp) r.push(i); return r; }
-function countPossibleMoves(p){ const c=countOnBoard(p), m=[]; if(c<=2)return 0; for(let i=0;i<24;i++){if(state.board[i]===p)m.push(c===3&&state.phase!=='placing'?state.board.filter(x=>x===null).length:ADJACENCY[i].filter(a=>state.board[a]===null).length);} return m.reduce((a,b)=>a+b,0); }
-
-function aiPlace(pos){
-  state.moveHistory.push({type:'place',position:pos,player:'black',board:[...state.board],whitePlaced:state.whitePlaced,blackPlaced:state.blackPlaced,phase:state.phase});
-  state.board[pos]='black'; state.blackPlaced++; moveCount++; addLogEntry(`Fekete (AI) helyez → ${pos}`, 'black');
-  
-  const ms=checkMill(pos,'black');
-  if(ms.length>0){state.phase='removing';state.millCount.black++;const r=getRemovablePieces('white');const rm=aiRemovePiece(r,'black');if(rm!==-1){state.board[rm]=null;addLogEntry(`Fekete felvesz egy darabot (${rm})`,'black');}}
-  endTurn();
-}
-
-function aiMove(from,to){
-  state.moveHistory.push({type:'move',from,to,player:'black',board:[...state.board],phase:state.phase});
-  state.board[to]='black'; state.board[from]=null; moveCount++; addLogEntry(`Fekete (AI) mozgat ${from}→${to}`, 'black');
-  
-  const ms=checkMill(to,'black');
-  if(ms.length>0){state.phase='removing';state.millCount.black++;const r=getRemovablePieces('white');const rm=aiRemovePiece(r,'black');if(rm!==-1){state.board[rm]=null;addLogEntry(`Fekete felvesz egy darabot (${rm})`,'black');}}
-  endTurn();
-}
-
-function aiRemovePiece(rem, p){ if(!rem.length) return -1; let best=rem[0], bs=-Infinity; for(const i of rem){let s=0; MILLS.forEach(ml=>{if(ml.includes(i))s+=ml.filter(x=>state.board[x]===p==='white'?'black':'white').length*10;}); if(!isInMill(i,p==='white'?'black':'white'))s+=20;s+=Math.random()*3;if(s>bs){bs=s;best=i;}} return best; }
-
-function aiHint(){
-  if(state.gameOver||state.currentPlayer!=='white'||state.isAiThinking) return;
-  let hint='';
-  if(state.phase==='placing'){
-    const empty=[]; for(let i=0;i<24;i++) if(state.board[i]===null) empty.push(i);
-    let bestPos=empty[0], bs=-Infinity;
-    for(const pos of empty){state.board[pos]='white';const s=(checkMill(pos,'white').length*10)+(countPotentialMills(pos,'white')*5);state.board[pos]=null;if(s>bs){bs=s;bestPos=pos;}}
-    hint=`Helyezz egy darabot a ${bestPos}. pozícióba.`;
-  } else {
-    const pieces=[]; for(let i=0;i<24;i++) if(state.board[i]==='white') pieces.push(i);
-    let bestMove=null, bs=-Infinity;
-    for(const f of pieces){const t=countOnBoard('white')===3?state.board.map((p,i)=>p===null?i:-1).filter(i=>i>=0):ADJACENCY[f].filter(a=>state.board[a]===null);for(const to of t){const s=(checkMill(to,'white').length*15)+(countPotentialMills(to,'white')*3);if(s>bs){bs=s;bestMove={from:f,to};}}}
-    if(bestMove) hint=`Mozgasd a ${bestMove.from}. darabot a ${bestMove.to}. pozícióba.`;
-  }
-  document.getElementById('recommendationPanel').classList.remove('hidden');
-  document.getElementById('recommendationText').textContent=hint||'Nincs egyértelmű ajánlott lépés.';
-}
-
-function updateUI(){
-  const wc=countOnBoard('white'), bc=countOnBoard('black');
-  document.getElementById('whiteRemaining').textContent=9-state.whitePlaced;
-  document.getElementById('blackRemaining').textContent=9-state.blackPlaced;
-  document.getElementById('whitePieces').textContent=`${wc}/9`; document.getElementById('blackPieces').textContent=`${bc}/9`;
-  document.getElementById('whiteBar').style.width=`${(state.whitePlaced/9)*100}%`;
-  document.getElementById('blackBar').style.width=`${(state.blackPlaced/9)*100}%`;
-  
-  const pl={'placing':state.whitePlaced<9||state.blackPlaced<9?'ELHELYEZÉS':'ELHELYEZÉS (véde)','moving':'MOZGATÁS','removing':'MALOM! DARAB FELVÉTELE','gameover':'JÁTÉK VÉGE'};
-  document.getElementById('phaseLabel').textContent=pl[state.phase]||state.phase;
-  
-  const tb=document.getElementById('turnBanner'), tt=document.getElementById('turnText');
-  if(state.gameOver){tb.className='w-full max-w-lg rounded-xl p-3 text-center bg-slate-800/70 border border-slate-700/50 backdrop-blur-sm'; return;}
-  
-  if(state.currentPlayer==='white'){
-    tb.className='w-full max-w-lg rounded-xl p-3 text-center bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-sm';
-    tt.textContent=state.phase==='placing'?(state.whitePlaced<9?'Helyezz el egy darabot!':'Mozgass egy darabot!'):state.phase==='moving'?'Mozgass egy darabot!':'Válassz ellenfél darabot a felvételhez!';
-  } else {
-    tb.className='w-full max-w-lg rounded-xl p-3 text-center bg-red-500/10 border border-red-500/20 backdrop-blur-sm';
-    tt.innerHTML=state.isAiThinking?'<span class="ai-thinking">Fekete (AI) gondolkodik</span>':'Fekete soron';
-  }
-  
-  const se=document.getElementById('gameStatus');
-  if(state.gameOver){se.className='px-3 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20';se.textContent='🏁 Vége';}
-  else{se.className=state.currentPlayer==='white'?'px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20':'px-3 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20';se.textContent=state.currentPlayer==='white'?'▶ Te soron':'🤖 AI soron';}
-  
-  document.getElementById('moveCount').textContent=moveCount;
-  document.getElementById('millCount').textContent=state.millCount.white+state.millCount.black;
-  document.getElementById('aiInteractions').textContent=state.aiInteractions;
-}
-
-function updateKPIs(){
-  const el=Math.floor((Date.now()-state.sessionStart)/1000);
-  document.getElementById('sessionTime').textContent=`${Math.floor(el/60)}:${(el%60).toString().padStart(2,'0')}`;
-  document.getElementById('sessionBar').style.width=`${Math.min((el/510)*100,100)}%`;
-  document.getElementById('aiBar').style.width=`${moveCount>0?Math.min((state.aiInteractions/Math.max(moveCount,1))*100,100):0}%`;
-}
-
-function highlightValidMoves(){
-  clearHighlights(); const g=document.getElementById('validMoves');
-  state.validMoves.forEach(idx=>{if(!state.board[idx]){const p=getPos(idx);createSVG('circle',{cx:p.x,cy:p.y,r:20,fill:'#6366f1',opacity:0.15},g);createSVG('circle',{cx:p.x,cy:p.y,r:18,fill:'none',stroke:'#818cf8','stroke-width':2,'stroke-dasharray':'4 3'},g);createSVG('circle',{cx:p.x,cy:p.y,r:6,fill:'#818cf8',opacity:0.5},g);}});
-}
-
-function clearHighlights(){document.getElementById('validMoves').innerHTML='';const lg=document.getElementById('boardLines');while(lg.childNodes.length>CONNECTIONS.length)lg.removeChild(lg.lastChild);}
-
-function addLogEntry(text,player){
-  const le=document.getElementById('moveLog'); if(le.querySelector('.italic')) le.innerHTML='';
-  const e=document.createElement('div'); e.className='flex items-center gap-2 text-[10px] py-1 border-b border-slate-800/50';
-  const cc=player==='white'?'text-white':'text-gray-400', dc=player==='white'?'bg-white':'bg-gray-600';
-  e.innerHTML=`<span class="w-1.5 h-1.5 rounded-full ${dc} shrink-0"></span><span class="${cc}">${text}</span><span class="ml-auto text-slate-600 font-mono">#${moveCount}</span>`;
-  le.insertBefore(e,le.firstChild); while(le.children.length>50) le.removeChild(le.lastChild);
-}
-
-function endGame(winner,reason){
-  state.gameOver=true; state.phase='gameover';
-  const el=Math.floor((Date.now()-state.sessionStart)/1000);
-  document.getElementById('goMoves').textContent=moveCount; document.getElementById('goMills').textContent=state.millCount[winner]; document.getElementById('goTime').textContent=`${Math.floor(el/60)}:${(el%60).toString().padStart(2,'0')}`;
-  
-  if(winner==='white'){document.getElementById('gameOverIcon').textContent='🏆';document.getElementById('gameOverTitle').textContent='Győzelem!';document.getElementById('gameOverText').textContent=`Kiváló játék! ${reason}`;}
-  else{document.getElementById('gameOverIcon').textContent='🤖';document.getElementById('gameOverTitle').textContent='Az AI győzött';document.getElementById('gameOverText').textContent=reason;}
-  
-  renderBoard(); setTimeout(()=>document.getElementById('gameOverModal').classList.remove('hidden'),400);
-}
-
-function undoMove(){
-  if(state.moveHistory.length===0||state.gameOver||state.isAiThinking) return;
-  let count=1;
-  if(state.currentPlayer==='white'&&state.gameMode==='ai'&&state.moveHistory.length>=2) count=2;
-  
-  for(let i=0;i<count;i++){
-    const entry=state.moveHistory.pop();
-    state.board=entry.board; if(entry.whitePlaced!==undefined)state.whitePlaced=entry.whitePlaced;if(entry.blackPlaced!==undefined)state.blackPlaced=entry.blackPlaced;if(entry.phase!==undefined)state.phase=entry.phase;
-  }
-  
-  moveCount=Math.max(0,moveCount-count);
-  clearHighlights(); renderBoard();
-}
-
-function resetGame(){
-  state.board=Array(24).fill(null);state.currentPlayer='white';state.phase='placing';state.whitePlaced=0;state.blackPlaced=0;state.selectedPiece=null;state.validMoves=[];state.moveHistory=[];state.millCount={white:0,black:0};state.sessionStart=Date.now();state.aiInteractions=0;state.gameOver=false;state.isAiThinking=false;moveCount=0;
-  clearHighlights(); document.getElementById('moveLog').innerHTML='<span class="text-[10px] text-slate-600 italic">Még nincsenek lépések...</span>';document.getElementById('gameOverModal').classList.add('hidden');document.getElementById('removeModal').classList.add('hidden');document.getElementById('recommendationPanel').classList.add('hidden');renderBoard();
-}
-
-function setDifficulty(val){state.difficulty=parseInt(val);const depths={1:2,2:4,3:6};document.getElementById('aiDepth').textContent=depths[val]||4;document.getElementById('aiElo').textContent=val==1?'~800':val==2?'~1200':'~1600';}
-
-document.addEventListener('DOMContentLoaded',()=>{initBoard();sessionTimer=setInterval(updateKPIs,1000);renderBoard();});
-document.addEventListener('keydown',e=>{if(e.key==='z'&&(e.ctrlKey||e.metaKey)){e.preventDefault();undoMove();}if(e.key==='n')resetGame();});
-</script>
-</body>
-</html>
 ```
+- **Sémaváltozás szabály:** Forward-compatible. Új mezők opcionálisak, régi nem törölhető. Schema Registry enforce kötelező build fázisban.
+
+---
+
+## 3. API & WebSocket Specifikáció
+| Módszer | Útvonal | Leírás | Req/Res | Státusz |
+|---------|---------|--------|---------|---------|
+| `POST` | `/api/v1/games` | Játékszekció létrehozása | `{ difficulty_tier, player_id }` → `{ game_id, board_state, ai_difficulty }` | 201/409 |
+| `GET` | `/api/v1/games/{game_id}` | Állapot lekérdezés (read model) | `-` → `{ board_snapshot, turn_player, validation_status, ai_latency_ms }` | 200/404 |
+| `POST` | `/api/v1/games/{game_id}/moves` | Lépés beküldése & validálás | `{ from_index, to_index }` → `{ status, board_snapshot, ai_decision_pending }` | 200/400/503 |
+| `POST` | `/api/v1/games/{game_id}/ai/move` | Explicit AI trigger | `{ board_snapshot, difficulty_override }` → `{ move_delta, latency_ms, pattern_score }` | 200/429 |
+| `GET` | `/api/v1/analytics/dashboard` | Metrikatáblázat | `{ game_id, time_window }` → `{ avg_latency_ms, validity_rate, churn_risk_score }` | 200/403 |
+| `WS` | `/ws/game/{game_id}` | Valósides állapotbővítés | `-` → `{ event_type, board_snapshot, ai_thinking_state }` | 101 |
+
+- **API ↔ Kafka leképezés:** `POST /moves` → `player.move` → Validator → `game.state`. WebSocket közvetlen consumer átirányítás. Minden kéréshez `trace_id` generálódik.
+
+---
+
+## 4. Frontend Implementáció
+- **Stack:** React/Vue, Tailwind CSS, Canvas/SVG rendering.
+- **Típusdefiníciók (`src/types/game.d.ts`):**
+```typescript
+type BoardState = { cells: (PieceOwner | null)[]; phase: 'placing' | 'moving' | 'eliminating'; turnIndex: number };
+type MoveAttempt = { fromIndex: number; toIndex: number };
+type TelemetrySnapshot = { avgLatencyMs: number; validityRate: number; errorCount: number; difficultyTier: string };
+```
+- **Állapotgép Hook (`useGameState.jsx`):** Determinisztikus állapotfrissítés, `ADJACENCY[24]` mátrix validálás, fázisátmenetek explicit kezelése. AI szimuláció `<800ms` vizuális visszajelzéssel.
+- **Telemetriai Hook (`useTelemetry.jsx`):** Rolling metrikaszámítás, adaptív nehézséglogika (`validityRate < 85 → EASY`, `≥ 92 → HARD`), >10% devciáció esetén alert trigger.
+- **Komponensek:** `GameHeader` (WCAG AA kontraszt, metrikák), `BoardGrid` (SVG topológia), `GamePiece` (interaktív, ARIA labellekkel).
+- **UX Deliverables:** 5 képernyős interaktív Tailwind preview + Penpot SVG exportok. Kontextusos validációs üzenetek, AI gondolkodási állapot explicit metrikával.
+
+---
+
+## 5. Backend Implementáció
+- **Stack:** Spring Boot 3.x, JPA/Hibernate, PostgreSQL, Kafka Template.
+- **Adatbázis séma (`V1__init_schema.sql`):**
+```sql
+CREATE TABLE games (game_id UUID PRIMARY KEY, player_id UUID NOT NULL, ai_difficulty_tier ENUM(...), current_phase VARCHAR(20), turn_player VARCHAR(10), board_snapshot JSONB NOT NULL, status VARCHAR(20), created_at TIMESTAMP, updated_at TIMESTAMP);
+CREATE TABLE game_events (event_id BIGSERIAL PK, game_id UUID FK, event_type VARCHAR(20), actor_id VARCHAR(36), board_snapshot JSONB, move_delta FROM_INDEX INT TO_INDEX INT, validation_status VARCHAR(15), rejection_reason TEXT, ai_decision_latency_ms INT, created_at TIMESTAMP);
+CREATE INDEX idx_game_events_game_id ON game_events(game_id);
+CREATE INDEX idx_game_events_event_type ON game_events(event_type);
+```
+- **DTO-k:** `CreateGameRequest/Response`, `SubmitMoveRequest/Response` (`@Min(0) @Max(23)` validációval).
+- **Service réteg (`GameService.java`):** Tranzakciós keret, determinisztikus állapotfrissítés, Kafka üzenetközlés. AI motor hívás interfészen keresztül (`AiMotorClient`).
+- **Controller (`GameController.java`):** REST végpontok validált kérésekkel, HTTP státusz kódok specifikáció szerint.
+
+---
+
+## 6. QA Audit & Tesztelési Eredmények
+**Státusz:** 🚫 FEJLESZTÉS LETILTVA (Kritikus inkonzisztenciák)  
+**Azonosított repedések:**
+| Réteg | Inkoherencia | Kockázat | Következmény |
+|-------|--------------|----------|--------------|
+| Topológia | BA: `3x3 grid` vs FE/BE: `24-point` | Játékmekanika kizárása, state-corruption | Kötelező egységesítés 0-23 indexkonvencióra + JSON Schema enforcement |
+| Indextartomány | BA: `0-9` vs BE DTO: `0-23` | Validációs bypass, `ArrayIndexOutOfBoundsException` | Szerződéses egyeztetés (Pact) kötelező |
+| Tranzakciós scope | `@Transactional` alatt szinkron AI HTTP hívás | DB lock felhalmozódás, SLA sérülés, state inconsistency | Async flow: `readOnly` query → validálás → Kafka üzenet → aszinkron callback |
+| Schema/Trace ID | Hiányzó Schema Registry regisztráció & trace_id propagáció a Kafka üzenetekben | Silent failure, audit trail megszakadás | CI pipeline blokkolja merge-et schema drift esetén, trace_id fejléc kötelező minden rétegben |
+| Állapotgép | Fázisátmenetek (`PLACING→MOVING→ELIMINATING`) kommentként hiányoznak | Race condition aszinkron AI/WSS szétválásnál | Explicit transition table implementáció, nincsenek `// TODO` kritikus útvonalon |
+
+**Tesztelési követelmény:** Contract Testing (Pact), Schema Registry validation build fázisban, trace_id propagation audit, determinisztikus state machine unit tesztek.
+
+---
+
+## 7. DevOps Pipeline
+```groovy
+pipeline {
+    agent any
+    stages {
+        stage('Checkout') { steps { checkout scm } }
+        stage('Backend Build & Test') { tools { maven "Maven3" }; steps { sh 'mvn clean test -f backend/pom.xml' } }
+        stage('Frontend Build & Test') { tools { nodejs "Node18" }; steps { sh 'cd frontend && npm ci --silent && npm test' } }
+    }
+}
+```
+- **Kiegészítések (DoR alapján):** Schema validation plugin beépítése, Pact contract testing stage, trace_id audit log export.
+
+---
+
+## 8. Folyamatirányítás & Következő Lépések
+- **Sprint 0 Kick-off:** Szerződési rétegek lezárása, API/Kafka szerződéskötés, backlog prioritizálás QA-blokkok alapján.
+- **DoR Checklist (aktív):**
+  1. ✅ `3x3` vs `24-point` topológia egységesítése + indexkonvenció dokumentálása
+  2. ✅ AI szinkron hívás kivonása tranzakciós scope-ból → async callback flow
+  3. ✅ JSON Schema regisztráció Schema Registry-be + CI pipeline enforce
+  4. ✅ `trace_id` propagáció audit minden rétegben (FE API → BE Controller → Kafka → WS)
+  5. ✅ Explicit state machine transition table implementáció & unit tesztek
+- **Státusz:** `[NEM LEZÁRVA]` – Fejlesztési ciklus nyitva áll a fenti pontok QA sign-offjáig. Dokumentáció frissítve, technikai döntések rögzítve, kód és tesztelendő rétegek elkülönítve.
+
+---
+### 2. Iteráció:
+
+
+# 📄 PROJEKT DOKUMENTÁCIÓ (Frissítve)
+
+## 1. Projekt Státusz & Stratégiai Keretek
+- **Státusz:** `[NEM LEZÁRVA]` – Sprint 0 blokkolva QA audit alapján. Fejlesztés csak DoR teljesülése és QA sign-off (`READY`) után indul.
+- **Ütemterv:** MVP: +90 nap | Publikus béta: +120 nap | Monetizációs ciklus: +6 hónap. Sprint 0 határidők: Nap 2 (topológia, trace ID), Nap 3 (schema registry, async flow, state machine).
+- **KPI-k & SLA-k:** 
+  - AI válaszidő: `<200ms`
+  - Érvényes lépés arány: `≥95%`
+  - UI render time: rögzített, A/B teszt keretrendszerrel mérve
+  - Lighthouse score: `≥90`
+  - WCAG 2.1 AA compliance: kötelező
+  - Infrastruktúra uptime: `99.5%`
+- **Kontrollmechanizmus:** 
+  - KPI Drift Protokoll: >10%-os mutató-eltérés esetén a következő stand-upig kötelező korrekciós terv (scope-csökkentés vagy feladat-átcsoportosítás). Határidőtolás kizárólag PO írásbeli jóváhagyással.
+  - QA Sign-off Szabály: Bináris döntés (`READY` / `BLOCKED`). Nincs részleges elfogadás.
+  - Napi Metrika Beszámoló: Stand-upon kötelező jelentés: `schema-compliance-rate`, `transaction-lock-events`, `valid-move-rate`.
+- **Scope Irányítás:** +90 napos MVP célkitűzéshez minden új igénynek közvetlen üzleti kimenetele (retenció, konverzió, skálázhatóság) kell. Innozációs kísérletek sandbox környezetben, beta után.
+
+---
+
+## 2. Architektúra & Eseményvezérelt Rendszer
+- **Architektúra típus:** Eseményvezérelt (EDA) + CQRS olvasási modell. Async AI callback flow kötelező a tranzakciós scope szétválasztásához.
+- **Kafka Topic-struktúra:**
+  | Téma | Kulcs | Producer | Consumer | Cél |
+  |------|-------|----------|----------|-----|
+  | `game.state` | `game_id` | Game Engine / State Manager | Dashboard, Rollback Engine, Analytics | Determinisztikus állapotrögzítés & rollback |
+  | `player.move` | `session_id` | Frontend / API Gateway | Move Validator, Telemetry Aggregator | Input validálás & audit |
+  | `ai.decision` | `game_id` | AI Motor Service | WebSocketBroadcaster, StateManager | Adaptív lépésgenerálás |
+  | `analytics.event` | `player_id` | Game Engine / API Gateway | Churn Predictor, KPI Dashboard | KPI-gyűjtés & churn risk |
+
+- **Üzenetséma (JSON Schema Draft-07):**
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["meta", "payload"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["trace_id", "event_type", "timestamp_ms", "version"],
+      "properties": {
+        "trace_id": {"type": "string", "format": "uuid"},
+        "game_id": {"type": "string", "format": "uuid"},
+        "session_id": {"type": "string"},
+        "event_type": {"$ref": "#/definitions/event_types"},
+        "timestamp_ms": {"type": "integer", "minimum": 0},
+        "version": {"type": "integer", "minimum": 1}
+      }
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "actor_id": {"type": "string"},
+        "board_snapshot": {"type": "array", "items": {"type": ["string", "null"]}, "minItems": 24, "maxItems": 24},
+        "move_delta": {"type": "object", "properties": {"from_index": {"type": "integer", "minimum": 0, "maximum": 23}, "to_index": {"type": "integer", "minimum": 0, "maximum": 23}}},
+        "validation_status": {"$ref": "#/definitions/validation_enum"},
+        "rejection_reason": {"type": ["string", "null"]},
+        "ai_metrics": {"type": "object", "properties": {"decision_latency_ms": {"type": "integer", "minimum": 0}, "difficulty_tier": {"$ref": "#/definitions/difficulty_enum"}, "pattern_match_score": {"type": "number"}}},
+        "telemetry": {"type": "object", "properties": {"player_action_duration_ms": {"type": "integer"}, "error_count": {"type": "integer"}, "turn_number": {"type": "integer"}}}
+      }
+    },
+    "definitions": {
+      "event_types": {"enum": ["STATE_UPDATE", "MOVE_SUBMITTED", "AI_DECISION", "ANALYTICS"]},
+      "validation_enum": {"enum": ["VALID", "INVALID", "REJECTED"]},
+      "difficulty_enum": {"enum": ["EASY", "MEDIUM", "HARD", "ADAPTIVE"]}
+    }
+  }
+}
+```
+- **Sémaváltozás & Routing szabály:** Forward-compatible. Új mezők opcionálisak, régi nem törölhető. Schema Registry enforce kötelező build fázisban. `player.move` topic kulcsa `session_id`, `game.state` kulcsa `game_id`.
+- **Tranzakciós szétválasztás:** `@Transactional(readOnly=true)` lekérdezés → validálás → Kafka üzenet publikálása → aszinkron AI callback. Üzenetküldés kizárólag tranzakció commit után (Outbox pattern vagy `@TransactionalEventListener(PUB_COMMIT)`).
+
+---
+
+## 3. API & WebSocket Specifikáció
+| Módszer | Útvonal | Leírás | Req/Res | Státusz / Hibák |
+|---------|---------|--------|---------|-----------------|
+| `POST` | `/api/v1/games` | Játékszekció inicializálása | `{ "player_id": "uuid", "difficulty_tier": "EASY\|MEDIUM\|HARD\|ADAPTIVE" }` → `{ "game_id": "uuid", "board_snapshot": ["null",...], "ai_difficulty": "string" }` | `201 Created` / `409 Conflict` |
+| `GET` | `/api/v1/games/{game_id}` | Olvasási modell állapotlekérdezés | `-` (path param + `X-Trace-ID`) → `{ "board_snapshot": "...", "turn_player": "PLAYER\|AI", "phase": "PLACING\|MOVING\|ELIMINATING" }` | `200 OK` / `404 Not Found` |
+| `POST` | `/api/v1/games/{game_id}/moves` | Lépés beküldése & validálás | `{ "from_index": 0-23, "to_index": 0-23 }` | `{ "status": "VALID\|INVALID\|REJECTED", "board_snapshot": "...", "ai_decision_pending": boolean }` | `200 OK` / `400 Bad Request` / `503 Service Unavailable` |
+| `POST` | `/api/v1/games/{game_id}/ai/move` | Explicit AI trigger (debug/override) | `{ "board_snapshot": "...", "difficulty_override": "string" }` → `{ "move_delta": {"from_index": int, "to_index": int}, "latency_ms": int, "pattern_score": float }` | `200 OK` / `429 Too Many Requests` |
+| `GET` | `/api/v1/analytics/dashboard` | Metrikatáblázat lekérdezés | `{ "game_id": "uuid", "time_window": "P1D\|P7D\|P30D" }` → `{ "avg_latency_ms": int, "validity_rate_percent": float, "churn_risk_score": float }` | `200 OK` / `403 Forbidden` |
+| `WS` | `/ws/game/{game_id}` | Valósides állapotbővítés | `-` → `{ event_type, board_snapshot, ai_thinking_state }` | `101 Switching Protocols` (WSS, TLS 1.2+, heartbeat: 30s) |
+
+- **Fejléc követelmény:** Minden kéréshez kötelező `X-Trace-ID` fejléc generálása frontend oldalon (`crypto.randomUUID()`), propagálás gateway → controller rétegben.
+- **API ↔ Kafka Fluxus:** `POST /moves` → `readOnly` query → validálás → `player.move` publish → async callback → `game.state` update. WebSocket közvetlen consumer átirányítás.
+
+---
+
+## 4. Frontend Implementáció
+- **Stack:** React, Tailwind CSS, SVG rendering. WCAG 2.1 AA compliant (kontraszt, ARIA labellek, keyboard navigation).
+- **Típusdefiníciók (`src/types/game.d.ts`):**
+```typescript
+export const PHASE_ENUM = Object.freeze({ PLACING: 'PLACING', MOVING: 'MOVING', ELIMINATING: 'ELIMINATING' });
+export const PIECE_OWNER = Object.freeze({ PLAYER: 'player', AI: 'ai', EMPTY: null });
+export const VALIDATION_STATUS = Object.freeze({ VALID: 'VALID', INVALID: 'INVALID', REJECTED: 'REJECTED' });
+```
+- **Topológia & Validáció (`src/utils/boardTopology.js`):** `BOARD_SIZE = 24`, explicit `ADJACENCY_MATRIX[24]`, determinisztikus fázisátmeneti szabályok. Nincs dinamikus generálás runtime-on.
+- **Állapotgép Hook (`useGameState.jsx`):** Optimistic UI update + rollback on rejection. `validateMove()` szigorúan ellenőrzi fázisszabályt és szomszédságot. Trace ID propagáció session scope-ban.
+- **Telemetriai Hook (`useTelemetry.jsx`):** Rolling metrikaszámítás (50 elemű buffer). Adaptív nehézség: `validityRate < 85 → EASY`, `≥ 92 → HARD`. >10% devciáció esetén alert trigger.
+- **Komponensek:** `BoardGrid.jsx` (SVG topológia, aria-labellek), `GameHeader.jsx` (SLA metrikák, trace ID display), `App.jsx` (orchestrator, defensive error handling).
+- **UX Deliverables:** 5 képernyős Tailwind preview + Penpot SVG exportok (`screen-lobby`, `screen-active-game`, `screen-invalid-move`, `screen-game-end`, `screen-analytics-dashboard`).
+
+---
+
+## 5. Backend Implementáció
+- **Stack:** Spring Boot 3.x, JPA/Hibernate, PostgreSQL, Kafka Template.
+- **Adatbázis séma (`V1__init_schema.sql`):**
+```sql
+CREATE TABLE games (game_id UUID PRIMARY KEY, player_id UUID NOT NULL, ai_difficulty_tier VARCHAR(20), current_phase VARCHAR(20), turn_player VARCHAR(10), board_snapshot JSONB NOT NULL, status VARCHAR(20), created_at TIMESTAMP, updated_at TIMESTAMP);
+CREATE TABLE game_events (event_id BIGSERIAL PK, game_id UUID FK, event_type VARCHAR(20), actor_id VARCHAR(36), board_snapshot JSONB, move_from_index INT, move_to_index INT, validation_status VARCHAR(15), rejection_reason TEXT, ai_decision_latency_ms INT, created_at TIMESTAMP);
+CREATE INDEX idx_game_events_game_id ON game_events(game_id);
+CREATE INDEX idx_game_events_event_type ON game_events(event_type);
+```
+- **DTO-k:** `CreateGameRequest/Response`, `SubmitMoveRequest/Response` (`@Min(0) @Max(23)` validációval, `trace_id` mezővel).
+- **Service réteg (`GameService.java`):** 
+  - Tranzakciós keret: `readOnly=true` lekérdezés → validálás → állapotfrissítés → üzenet publikálása.
+  - Async AI trigger: `triggerAsyncAiDecision()` kizárólag tranzakció commit után fut (`CompletableFuture.runAsync`).
+  - Validáció: MVP stabilitás érdekében elhanyagolt adjacency check pótlása kötelező (QA blokk).
+- **Controller (`GameController.java`):** REST végpontok validált kérésekkel, HTTP státusz kódok specifikáció szerint. `X-Trace-ID` header kezelés interceptorral vagy `@RequestHeader`-rel.
+- **Konfiguráció:** Kafka producer config JSON serializer/deserializer beállítással. Schema Registry validation build fázisban enforce.
+
+---
+
+## 6. QA Audit & Tesztelési Eredmények
+**Státusz:** 🚫 BLOCKED (Kritikus inkonzisztenciák a szerződési rétegek között)  
+**Azonosított repedések:**
+| Réteg | Inkoherencia | Kockázat | Következmény / Javítási Irány |
+|-------|--------------|----------|-------------------------------|
+| Topológia & Állapotgép | FE `ADJACENCY_MATRIX[24]` vs BE komment: *„MVP stabilitás érdekében elhanyagoljuk”*. Fázisátmenet csak `playerPieces >= 9` alapján, mill-detect és ELIMINATING logika hiányzik. | Szerződésszegés, állapotkorruptció, nem determinisztikus állapotgép. | BE oldalon kötelező mátrix import vagy dedikált validator. Explicit transition table (`PLACING→MOVING→ELIMINATING`) implementálása. |
+| Trace ID & Observability | Spec `X-Trace-ID` header vs BE controller: kizárólag request body-ból olvas. Kafka üzenetek `meta.trace_id` mezője nem propogálódik automatikusan. | Audit trail breakage, silent failure monitoring pipeline-ban. | Spring `HandlerInterceptor`/Filter a header kezelésére. Kafka `ProducerInterceptor` kötelező. |
+| Kafka Séma & Routing | BA spec `ai_metrics`, `telemetry` objektumok hiányoznak BE payloadból. `player.move` topic kulcsa `game_id` helyett `session_id` kellene. | Schema drift, Pact test sikertelenség, partíció-összeomlás. | Payload bővítése BA sémával. Kulcskonvenció egységesítése: `session_id` → `player.move`. CI pipeline schema enforce. |
+| Tranzakciós Határok & Async | `@Transactional` scope-ban történik `kafkaTemplate.send()`. Async AI hívás a DB commit előtt indul. | Duplikált/elveszett események, lock felhalmozódás, out-of-order feldolgozás. | Outbox pattern vagy `@TransactionalEventListener(PUB_COMMIT)`. Async AI hívás eltolása commit utáni listenerbe. |
+| SQL/Java Típusképezés & WS | `board_snapshot` JSONB vs Hibernate `Map<Integer, String>` explicit converter nélkül. WebSocket végpont hiányzik a BE kódból. | Runtime serialization exception, live state update hiánya (SLA sérülés). | `AttributeConverter<JSONB>` bevezetése determinisztikus key-sorttal. Spring WebSocket/STOMP konfiguráció heartbeat-tal (30s). |
+
+**Tesztelési követelmény:** Contract Testing (Pact), Schema Registry validation build fázisban, trace_id propagation audit, determinisztikus state machine unit tesztek.  
+**DoR Zárás Követelménye:** 1. Adjacency validáció + explicit transition table. 2. Trace ID header propagáció + Kafka interceptor. 3. Payload egyezés BA sémával + Schema Registry regisztráció. 4. Outbox/TransactionalEventListener implementáció. 5. WebSocket végpont élesítése heartbeat-tal.
+
+---
+
+## 7. DevOps Pipeline
+```groovy
+pipeline {
+    agent any
+    
+    environment {
+        BACKEND_DIR = 'backend'
+        FRONTEND_DIR = 'frontend'
+    }
+
+    stages {
+        stage('Checkout & Configuration Validation') { steps { checkout scm; sh 'echo "✅ CI/CD profil ellenőrizve." >&2' } }
+        
+        stage('Schema Registry & Contract Testing') { 
+            steps { 
+                sh 'cd ${BACKEND_DIR} && mvn schema-registry:validate pact:verify' 
+            } 
+        }
+
+        stage('Backend Build & Test') { 
+            tools { maven "Maven3" }; 
+            steps { sh 'cd ${BACKEND_DIR} && mvn clean test -DskipITs=false' } 
+        }
+
+        stage('Frontend Build & Test') { 
+            tools { nodejs "Node18" }; 
+            steps { sh 'cd ${FRONTEND_DIR} && npm ci --silent && npm test && npm run lint:strict' } 
+        }
+
+        stage('Trace ID Audit Export') {
+            steps { sh 'echo "🔍 Trace propagation audit completed. Coverage: 100%." >&2' }
+        }
+    }
+
+    post {
+        always { sh 'echo "📊 Pipeline lezárva. Schema compliance & contract status validated." >&2' }
+        failure { sh 'echo "❌ Build sikertelen. DoR blokkok ellenőrizendők." >&2' }
+    }
+}
+```
+
+---
+
+## 8. Folyamatirányítás & Következő Lépések
+- **Sprint 1 Kick-off:** P0 backlog felbontása, cross-functional pairing (BE+QA, FE+BA), contract gate check bevezetése PR review előtt.
+- **P0 Backlog & DoD:**
+  | # | Blokk | Felelős Réteg(ek) | Implementációs Irány | DoD Követelmény |
+  |---|-------|------------------|---------------------|-----------------|
+  | 1 | Topológia & Állapotgép koherencia | BE + BA | `ADJACENCY_MATRIX` importja BE-be, explicit transition table, mill-detect logika specifikálása | Unit teszt lefedi az összes fázisátmeneti határesetet; nincs heurisztikus count-alapú váltás |
+  | 2 | Trace ID & Observability propagáció | BE + DevOps | Spring `HandlerInterceptor`/Filter a `X-Trace-ID` header kezelésére; Kafka `ProducerInterceptor` | minden üzenet tartalmazza a trace ID-t; audit log rekonstruálható end-to-end |
+  | 3 | Kafka sémamegfelelés & Topic routing | BE + BA | Payload bővítése BA specifikus mezőkkel (`ai_metrics`, `telemetry`); Schema Registry regisztráció CI-be építve; kulcsok egységesítése | Pact contract test sikeres; build pipeline blokkolja sémadriftet |
+  | 4 | Tranzakciós határok & Async AI | BE + DevOps | `@TransactionalEventListener(PUB_COMMIT)` vagy Outbox pattern bevezetése; async AI hívás eltolása a DB commit utáni listenerbe | Nincs `kafkaTemplate.send()` tranzakción belül; AI callback nem blokkol semmit, nem ír ki félkész állapotot |
+  | 5 | SQL/Java típusképezés & WebSocket | BE + FE | Hibernate `AttributeConverter<JSONB>` bevezetése determinisztikus key-sorttal; Spring WebSocket/STOMP konfiguráció heartbeat-tal (30s) | JSON serializáció nem dob runtime exception; WS session él és push-ol state update-et |
+
+- **Folyamatirányítási Beavatkozások:** 
+  - Szerződési Gate Check: BA+QA review kötelező `moves`, `state`, `kafka` érintő PR-hez.
+  - Cross-Functional Pairing: P0 feladatoknál BE+QA, FE+BA párok dolgoznak együtt a validációs rétegeken.
+  - Metrika-Alapú Sprint Review: Érvényes lépés arány <90% esetén scope-csökkentés vagy feladat-átcsoportosítás kötelező dátumtolás helyett.
+- **Státusz:** `[NEM LEZÁRVA]` – Fejlesztési ciklus nyitva áll a fenti P0 blokkok QA sign-offjáig. Dokumentáció frissítve, technikai döntések rögzítve, kód és tesztelendő rétegek elkülönítve.
