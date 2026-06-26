@@ -1,0 +1,41 @@
+pipeline {
+    agent any
+    tools {
+        nodejs 'Node18'
+        maven 'Maven3'
+    }
+    stages {
+        stage('Frontend Build') {
+            when { expression { fileExists('frontend/package.json') } }
+            steps {
+                dir('frontend') {
+                    sh 'npm install'
+                }
+            }
+        }
+        stage('Backend Build') {
+            when { expression { fileExists('backend/pom.xml') } }
+            steps {
+                dir('backend') {
+                    sh 'mvn clean compile'
+                }
+            }
+        }
+        stage('Frontend Deploy') {
+            when { expression { fileExists('frontend/package.json') } }
+            steps {
+                dir('frontend') {
+                    sh 'BUILD_ID=allow_to_run_background BROWSER=none HOST=0.0.0.0 nohup npm start > frontend.log 2>&1 &'
+                }
+            }
+        }
+        stage('Backend Deploy') {
+            when { expression { fileExists('backend/pom.xml') } }
+            steps {
+                dir('backend') {
+                    sh 'BUILD_ID=allow_to_run_background nohup mvn spring-boot:run -Dserver.port=8081 -Dserver.address=0.0.0.0 > backend.log 2>&1 &'
+                }
+            }
+        }
+    }
+}
