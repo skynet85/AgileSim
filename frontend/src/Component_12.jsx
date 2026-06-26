@@ -1,7 +1,9 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
 
-body { margin: 0; font-family: 'Inter', system-ui, sans-serif; }
-.board-point { cursor: pointer; transition: all 0.2s ease; }
-.board-point.selected { transform: scale(1.3); box-shadow: 0 0 15px rgba(250,204,21,0.6); }
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
