@@ -1,43 +1,40 @@
 pipeline {
     agent any
+    tools {
+        nodejs 'Node18'
+        maven 'Maven3'
+    }
     stages {
-        stage('Frontend Dependencies') {
-            when { expression { fileExists("frontend/package.json") } }
-            tools { nodejs "Node18" }
-            steps {
-                sh 'npm install'
-            }
-        }
-
         stage('Frontend Build') {
-            when { expression { fileExists("frontend/package.json") } }
-            tools { nodejs "Node18" }
+            when { expression { fileExists('frontend/package.json') } }
             steps {
-                sh 'npm run build'
+                dir('frontend') {
+                    sh 'npm install'
+                }
             }
         }
-
+        stage('Backend Build') {
+            when { expression { fileExists('backend/pom.xml') } }
+            steps {
+                dir('backend') {
+                    sh 'mvn clean compile'
+                }
+            }
+        }
         stage('Frontend Deploy') {
-            when { expression { fileExists("frontend/package.json") } }
-            tools { nodejs "Node18" }
+            when { expression { fileExists('frontend/package.json') } }
             steps {
-                sh 'JENKINS_NODE_COOKIE=dontKillMe nohup npm start > frontend.log 2>&1 &'
+                dir('frontend') {
+                    sh 'JENKINS_NODE_COOKIE=dontKillMe nohup npm start > frontend.log 2>&1 &'
+                }
             }
         }
-
-        stage('Backend Compile') {
-            when { expression { fileExists("backend/pom.xml") } }
-            tools { maven "Maven3" }
-            steps {
-                sh 'mvn clean compile'
-            }
-        }
-
         stage('Backend Deploy') {
-            when { expression { fileExists("backend/pom.xml") } }
-            tools { maven "Maven3" }
+            when { expression { fileExists('backend/pom.xml') } }
             steps {
-                sh 'JENKINS_NODE_COOKIE=dontKillMe nohup mvn spring-boot:run -Dserver.port=8081 > backend.log 2>&1 &'
+                dir('backend') {
+                    sh 'JENKINS_NODE_COOKIE=dontKillMe nohup mvn spring-boot:run -Dserver.port=8081 > backend.log 2>&1 &'
+                }
             }
         }
     }
