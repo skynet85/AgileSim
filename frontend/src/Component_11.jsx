@@ -1,12 +1,20 @@
-import React from 'react';
-import GameBoard from './components/GameBoard';
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
-const App: React.FC = () => {
-  return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-950 via-gray-900 to-slate-900">
-      <GameBoard />
-    </div>
-  );
-};
-
-export default App;
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+    open: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      }
+    }
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: true
+  }
+});
