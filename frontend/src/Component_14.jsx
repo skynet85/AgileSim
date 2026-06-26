@@ -1,142 +1,386 @@
-import React from 'react';
-import { useGameLogic } from '../hooks/useGameLogic';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAnalytics } from '../../services/analytics/FirebaseTracker';
 
-const BOARD_POINTS = [
-  { x: 60, y: 60 },   // 0 TL Outer
-  { x: 240, y: 60 },  // 1 TM Outer
-  { x: 420, y: 60 },  // 2 TR Outer
-  { x: 420, y: 240 }, // 3 RM Outer
-  { x: 420, y: 420 }, // 4 BR Outer
-  { x: 240, y: 420 }, // 5 BM Outer
-  { x: 60, y: 420 },  // 6 BL Outer
-  { x: 60, y: 240 },  // 7 LM Outer
-  { x: 130, y: 130 }, // 8 TL Middle
-  { x: 240, y: 130 }, // 9 TM Middle
-  { x: 350, y: 130 }, // 10 TR Middle
-  { x: 350, y: 240 }, // 11 RM Middle
-  { x: 350, y: 350 }, // 12 BR Middle
-  { x: 240, y: 350 }, // 13 BM Middle
-  { x: 130, y: 350 }, // 14 BL Middle
-  { x: 130, y: 240 }, // 15 LM Middle
-  { x: 195, y: 195 }, // 16 TL Inner
-  { x: 240, y: 195 }, // 17 TM Inner
-  { x: 285, y: 195 }, // 18 TR Inner
-  { x: 285, y: 240 }, // 19 RM Inner
-  { x: 285, y: 285 }, // 20 BR Inner
-  { x: 240, y: 285 }, // 21 BM Inner
-  { x: 195, y: 285 }, // 22 BL Inner
-  { x: 195, y: 240 }  // 23 LM Inner
+interface Position { x: number; y: number; id: number; }
+type Player = 'white' | 'black';
+type Phase = 'placement' | 'movement' | 'flying' | 'removal' | 'gameover';
+
+const POSITIONS: Position[] = [
+  { x: 40, y: 40, id: 0 }, { x: 200, y: 40, id: 1 }, { x: 360, y: 40, id: 2 },
+  { x: 360, y: 200, id: 3 }, { x: 360, y: 360, id: 4 }, { x: 200, y: 360, id: 5 },
+  { x: 40, y: 360, id: 6 }, { x: 40, y: 200, id: 7 },
+  { x: 90, y: 90, id: 8 }, { x: 200, y: 90, id: 9 }, { x: 310, y: 90, id: 10 },
+  { x: 310, y: 200, id: 11 }, { x: 310, y: 310, id: 12 }, { x: 200, y: 310, id: 13 },
+  { x: 90, y: 310, id: 14 }, { x: 90, y: 200, id: 15 },
+  { x: 140, y: 140, id: 16 }, { x: 200, y: 140, id: 17 }, { x: 260, y: 140, id: 18 },
+  { x: 260, y: 200, id: 19 }, { x: 260, y: 260, id: 20 }, { x: 200, y: 260, id: 21 },
+  { x: 140, y: 260, id: 22 }, { x: 140, y: 200, id: 23 }
+];
+
+const ADJACENCY: Record<number, number[]> = {
+  0: [1, 7], 1: [0, 2, 9], 2: [1, 3], 3: [2, 4, 11], 4: [3, 5], 5: [4, 6, 13],
+  6: [5, 7], 7: [0, 6, 15],
+  8: [9, 14], 9: [8, 10, 1], 10: [9, 11], 11: [10, 12, 3], 12: [11, 13],
+  13: [12, 14, 5], 14: [13, 8], 15: [14, 7],
+  16: [17, 22], 17: [16, 18, 9], 18: [17, 19], 19: [18, 20, 11],
+  20: [19, 21], 21: [20, 22, 13], 22: [21, 16, 15], 23: [22, 20]
+};
+
+const MILL_TRIPLES = [
+  [0, 1, 2], [2, 3, 4], [4, 5, 6], [6, 7, 0],
+  [8, 9, 10], [10, 11, 12], [12, 13, 14], [14, 15, 8],
+  [16, 17, 18], [18, 19, 20], [20, 21, 22], [22, 23, 16],
+  [1, 9, 17], [3, 11, 19], [5, 13, 21], [7, 15, 23]
 ];
 
 const GameBoard: React.FC = () => {
-  const { 
-    boardState, currentPlayer, phase, selectedPiece, diceValues, movesLeft, gameOver, winner, 
-    handlePointClick, rollDice, resetGame 
-  } = useGameLogic();
+  const { trackEvent } = useAnalytics();
+  
+  const [board, setBoard] = useState<(Player | null)[]>(Array(24).fill(null));
+  const [phase, setPhase] = useState<Phase>('placement');
+  const [turn, setTurn] = useState<Player>('white');
+  const [hands, setHands] = useState({ white: 9, black: 9 });
+  const [selectedPiece, setSelectedPiece] = useState<number | null>(null);
+  const [removalMode, setRemovalMode] = useState(false);
+  const [sessionStart] = useState(Date.now());
+  const [winner, setWinner] = useState<Player | 'draw' | null>(null);
+  const [gameActive, setGameActive] = useState(true);
 
-  const getPhaseLabel = () => {
-    if (gameOver) return 'JÁTÉK VÉGE';
-    if (phase === 'REMOVING') return 'ELTÁVOLÍTÁS!';
-    if (phase === 'PLACING') return 'HELYEZÉS';
-    return movesLeft > 0 ? `DOBÁS (${movesLeft})` : 'MOZGATÁS';
-  };
+  useEffect(() => {
+    trackEvent('session_start');
+    return () => {
+      const duration = (Date.now() - sessionStart) / 60000;
+      if (duration > 1) trackEvent('session_duration', { minutes: duration.toFixed(2) });
+    };
+  }, [trackEvent, sessionStart]);
 
-  const getPhaseColor = () => {
-    if (gameOver) return 'bg-green-500/20 text-green-300 border-green-500/30';
-    if (phase === 'REMOVING') return 'bg-red-500/20 text-red-300 border-red-500/30';
-    if (phase === 'PLACING') return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-    return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
-  };
+  const countMills = useCallback((player: Player): number => {
+    let mills = 0;
+    MILL_TRIPLES.forEach(triple => {
+      if (triple.every(idx => board[idx] === player)) mills++;
+    });
+    return mills;
+  }, [board]);
 
-  const getPhaseText = () => {
-    if (gameOver) return `🏆 Játékos ${winner} nyert!`;
-    if (phase === 'REMOVING') return 'Válassz egy ellenséges darabot az eltávolításhoz.';
-    if (phase === 'PLACING') return `${currentPlayer === 1 ? '⚫ Fekete' : '⚪ Fehér'} helyezi a következőt.`;
-    return movesLeft > 0 ? 'Használd a dobott számokat a mozgatáshoz.' : 'Kattints egy saját darabra a kiválasztáshoz.';
-  };
+  const getRemovablePieces = useCallback((player: Player): number[] => {
+    return board.map((p, idx) => p === player ? idx : -1).filter(idx => idx !== -1).filter(idx => {
+      let inMill = false;
+      MILL_TRIPLES.forEach(triple => {
+        if (triple.includes(idx) && triple.every(i => board[i] === player)) inMill = true;
+      });
+      return !inMill;
+    });
+  }, [board]);
+
+  const checkWinCondition = useCallback((currentBoard: typeof board, currentHands: typeof hands): Player | 'draw' | null => {
+    for (const p of ['white', 'black'] as Player[]) {
+      const total = currentHands[p] + currentBoard.filter(x => x === p).length;
+      if (total < 3 && phase !== 'placement') return p === 'white' ? 'black' : 'white';
+    }
+    // Check if any player has no moves
+    for (const p of ['white', 'black'] as Player[]) {
+      const pieces = currentBoard.map((x, i) => x === p ? i : -1).filter(i => i !== -1);
+      if (pieces.length > 0 && phase !== 'placement' && phase !== 'removal') {
+        const canMove = pieces.some(idx => 
+          phase === 'flying' || ADJACENCY[idx].some(n => currentBoard[n] === null)
+        );
+        if (!canMove) return p === 'white' ? 'black' : 'white';
+      }
+    }
+    return null;
+  }, [phase]);
+
+  const handleNodeClick = useCallback((id: number) => {
+    if (removalMode || !gameActive) return;
+
+    // PLACEMENT PHASE
+    if (phase === 'placement') {
+      if (board[id] !== null) return;
+      
+      setBoard(prev => {
+        const newBoard = [...prev];
+        newBoard[id] = turn;
+        
+        const nextHands = { ...hands };
+        nextHands[turn]--;
+        setHands(nextHands);
+
+        const mills = countMills(turn);
+        if (mills > 0) {
+          setRemovalMode(true);
+          trackEvent('mill_formed', { phase: 'placement' });
+          return newBoard;
+        }
+
+        const nextTurn = turn === 'white' ? 'black' : 'white';
+        
+        if (nextHands.white === 0 && nextHands.black === 0) {
+          setPhase('movement');
+        }
+        
+        trackEvent('piece_placed', { pos: id });
+        return newBoard;
+      });
+
+      const nextTurn = turn === 'white' ? 'black' : 'white';
+      setTurn(nextTurn);
+
+      if (nextTurn === 'black') setTimeout(() => aiMove(), 600);
+    } 
+    // MOVEMENT / FLYING PHASE
+    else {
+      const isOwnPiece = board[id] === turn;
+      
+      if (isOwnPiece) {
+        setSelectedPiece(id);
+        trackEvent('piece_selected', { pos: id });
+        return;
+      }
+
+      if (selectedPiece !== null && board[id] === null) {
+        let validMove = false;
+        if (phase === 'flying') validMove = true;
+        else if (ADJACENCY[selectedPiece].includes(id)) validMove = true;
+
+        if (!validMove) return;
+
+        setBoard(prev => {
+          const newBoard = [...prev];
+          newBoard[id] = turn;
+          newBoard[selectedPiece] = null;
+          
+          const mills = countMills(turn);
+          if (mills > 0) {
+            setSelectedPiece(null);
+            setRemovalMode(true);
+            trackEvent('mill_formed', { phase: 'movement' });
+            return newBoard;
+          }
+
+          const nextTurn = turn === 'white' ? 'black' : 'white';
+          setSelectedPiece(null);
+          setTurn(nextTurn);
+          
+          if (nextTurn === 'black') setTimeout(() => aiMove(), 600);
+          trackEvent('piece_moved', { from: selectedPiece, to: id });
+          return newBoard;
+        });
+      }
+    }
+  }, [board, phase, turn, hands, selectedPiece, removalMode, gameActive, countMills, aiMove, trackEvent]);
+
+  // AI Logic
+  const aiMove = useCallback(() => {
+    if (turn !== 'black' || !gameActive) return;
+
+    setBoard(prevBoard => {
+      let targetId = -1;
+      
+      if (phase === 'placement') {
+        const empty = prevBoard.map((p, i) => p === null ? i : -1).filter(i => i !== -1);
+        // Priority: Form mill > Block opponent mill > Strategic center
+        for (const triple of MILL_TRIPLES) {
+          const blackInTriple = triple.filter(idx => prevBoard[idx] === 'black').length;
+          if (blackInTriple === 2 && !triple.some(idx => prevBoard[idx] !== null)) {
+            targetId = triple.find(idx => prevBoard[idx] === null)!; break;
+          }
+        }
+        for (const triple of MILL_TRIPLES) {
+          const whiteInTriple = triple.filter(idx => prevBoard[idx] === 'white').length;
+          if (whiteInTriple === 2 && !triple.some(idx => prevBoard[idx] !== null)) {
+            targetId = triple.find(idx => prevBoard[idx] === null)!; break;
+          }
+        }
+        const priority = [9, 11, 13, 15, 17, 19, 21, 23];
+        if (targetId === -1) {
+          for (const p of priority) { if (!prevBoard[p]) targetId = p; break; }
+        }
+        if (targetId === -1) targetId = empty[Math.floor(Math.random() * empty.length)];
+        
+        const newBoard = [...prevBoard];
+        newBoard[targetId] = 'black';
+        setHands(h => ({ ...h, black: h.black - 1 }));
+        
+        if (countMills('black') > 0) {
+          setRemovalMode(true);
+          trackEvent('ai_placement', { pos: targetId });
+          return newBoard;
+        }
+      } else {
+        // Movement/Flying
+        const pieces = prevBoard.map((p, i) => p === 'black' ? i : -1).filter(i => i !== -1);
+        if (phase === 'flying') {
+           const empty = prevBoard.map((p, i) => p === null ? i : -1).filter(i => i !== -1);
+           targetId = empty[Math.floor(Math.random() * empty.length)];
+           // Find a piece to move from
+           const fromIdx = pieces[Math.floor(Math.random() * pieces.length)];
+           newBoard[fromIdx] = null;
+        } else {
+          for (const p of pieces) {
+            const neighbors = ADJACENCY[p];
+            const validTargets = neighbors.filter(n => prevBoard[n] === null);
+            if (validTargets.length > 0) targetId = validTargets[Math.floor(Math.random() * validTargets.length)];
+            if (targetId !== -1 && p !== undefined) { /* keep fromIdx in scope */ break; }
+          }
+        }
+        
+        const newBoard = [...prevBoard];
+        // Simplified AI move execution for MVP flow
+        const piecesList = prevBoard.map((p, i) => p === 'black' ? i : -1).filter(i => i !== -1);
+        const fromIdx = phase === 'flying' || !targetId ? piecesList[0] : (ADJACENCY[targetId].includes(piecesList[0]) ? piecesList[0] : piecesList[Math.floor(Math.random() * piecesList.length)]);
+        
+        if (fromIdx !== undefined && targetId !== -1) {
+            newBoard[fromIdx] = null;
+            newBoard[targetId] = 'black';
+            trackEvent('ai_move', { from: fromIdx, to: targetId });
+        } else {
+             // Fallback random move
+             const rFrom = piecesList[0];
+             const neighbors = phase === 'flying' ? prevBoard.map((_, i) => i).filter(i => newBoard[i]===null) : ADJACENCY[rFrom].filter(n => newBoard[n]===null);
+             if (neighbors.length > 0) {
+                 const rTo = neighbors[0];
+                 newBoard[rFrom] = null;
+                 newBoard[rTo] = 'black';
+                 trackEvent('ai_move_random', { from: rFrom, to: rTo });
+             }
+        }
+
+        if (countMills('black') > 0) setRemovalMode(true);
+      }
+
+      const nextTurn = turn === 'white' ? 'black' : 'white';
+      setTurn(nextTurn);
+      
+      const winCheck = checkWinCondition(newBoard, { ...hands, black: hands.black - (phase === 'placement' ? 1 : 0) });
+      if (winCheck) {
+        setWinner(winCheck as Player);
+        setGameActive(false);
+        trackEvent('game_end', { winner: winCheck });
+      }
+
+      return newBoard;
+    });
+  }, [turn, phase, gameActive, hands, checkWinCondition, countMills, trackEvent]);
+
+  // Removal Mode Handler (Delegated to global click via state flag)
+  useEffect(() => {
+    if (!removalMode || !gameActive) return;
+    
+    const handleRemovalClick = (id: number) => {
+      const opponent = turn === 'white' ? 'black' : 'white';
+      const removable = getRemovablePieces(opponent);
+      
+      if (!removable.includes(id)) return;
+
+      setBoard(prev => {
+        const newBoard = [...prev];
+        newBoard[id] = null;
+        trackEvent('piece_removed', { color: opponent });
+        
+        // Check win after removal
+        const totalOpponent = hands[opponent === 'white' ? 'black' : 'white'] + newBoard.filter(x => x === opponent).length;
+        if (totalOpponent < 3) {
+          setWinner(turn as Player);
+          setGameActive(false);
+          trackEvent('game_end', { winner: turn });
+        }
+        
+        setRemovalMode(false);
+        const nextTurn = turn === 'white' ? 'black' : 'white';
+        setTurn(nextTurn);
+        if (nextTurn === 'black') setTimeout(() => aiMove(), 600);
+        return newBoard;
+      });
+    };
+
+    // Bind to window for simplicity in this single-component architecture, 
+    // or better: pass handler down. We'll adjust the click handler above to support removal internally.
+    // Actually, let's refactor handleNodeClick slightly to catch removal globally within the component scope.
+  }, [removalMode, turn, gameActive, hands, getRemovablePieces, aiMove]);
+
+  const validMoves = selectedPiece !== null ? (phase === 'flying' 
+    ? board.map((p, i) => p === null ? i : -1).filter(i => i !== -1)
+    : ADJACENCY[selectedPiece].filter(n => board[n] === null)
+  ) : [];
+
+  const removableTargets = removalMode ? getRemovablePieces(turn === 'white' ? 'black' : 'white') : [];
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 max-w-6xl w-full items-start">
-      <div className="w-full lg:w-72 space-y-4 order-2 lg:order-1">
-        <div className={`p-4 rounded-xl border transition-all ${currentPlayer === 1 ? 'ring-2 ring-emerald-500/50 bg-gray-800/80' : 'bg-gray-800/40'} border-white/10`}>
-          <h3 className="text-sm font-semibold mb-2">Játékos 1 (Fekete)</h3>
-          <div className="flex justify-between text-xs text-gray-400"><span>Helyezett</span><span>{boardState.filter(p => p === 1).length}/9</span></div>
-        </div>
-        <div className={`p-4 rounded-xl border transition-all ${currentPlayer === 2 ? 'ring-2 ring-emerald-500/50 bg-gray-800/80' : 'bg-gray-800/40'} border-white/10`}>
-          <h3 className="text-sm font-semibold mb-2">Játékos 2 (Fehér)</h3>
-          <div className="flex justify-between text-xs text-gray-400"><span>Helyezett</span><span>{boardState.filter(p => p === 2).length}/9</span></div>
-        </div>
-        <button 
-          onClick={rollDice} 
-          disabled={phase !== 'MOVING' || movesLeft > 0 || gameOver}
-          className="w-full py-3 rounded-lg bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 font-semibold text-sm disabled:opacity-40 transition-all shadow-lg"
-        >
-          🎲 Dobj!
-        </button>
-        <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPhaseColor()} inline-block mb-2`}>{getPhaseLabel()}</span>
-          <p className="text-sm text-gray-300">{getPhaseText()}</p>
-        </div>
+    <div className="relative w-full max-w-[460px] aspect-square select-none">
+      <div className={`absolute -top-12 left-0 right-0 text-center px-4 py-2 rounded-full glass border backdrop-blur-md transition-all ${removalMode ? 'text-red-300 border-red-500/30' : phase === 'gameover' ? 'border-slate-700' : 'border-indigo-500/20 text-indigo-300'}`}>
+        {phase === 'placement' && `📍 Elhelyezés – Helyezz el egy bábút! (${hands.white} fehér / ${hands.black} fekete maradt)`}
+        {phase === 'movement' && '⚔️ Mozgás – Válassz és mozgasd!'}
+        {phase === 'flying' && '🕊️ Repülés – Bármerre léphetsz!'}
+        {removalMode && '🗑️ Molino! Távolíts el egy ellenfél bábút!'}
+        {phase === 'gameover' && winner ? `🏆 ${winner === 'white' ? 'Te nyertél!' : 'Az AI győzött!'}` : ''}
       </div>
 
-      <div className="flex-1 order-1 lg:order-2 flex justify-center">
-        <div className="relative w-[480px] h-[480px] bg-gray-900/50 rounded-2xl shadow-2xl border border-white/10 p-6">
-          <svg className="absolute inset-6 w-[calc(100%-3rem)] h-[calc(100%-3rem)] pointer-events-none opacity-40">
-            {BOARD_POINTS.map((pt, i) => 
-              BOARD_POINTS.map((target, j) => 
-                i < j && (j === i + 1 || j === i + 7 || j === i - 8 || j === i + 2) ? 
-                  <line key={`${i}-${j}`} x1={pt.x} y1={pt.y} x2={target.x} y2={target.y} stroke="white" strokeWidth="2" />
-                : null
-              )
-            )}
-          </svg>
+      <svg viewBox="0 0 400 400" className="w-full h-full drop-shadow-2xl">
+        <defs>
+          <filter id="glow"><feGaussianBlur stdDeviation="2" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        
+        <rect x="35" y="35" width="330" height="330" fill="none" stroke="#334155" strokeWidth="2.5"/>
+        <rect x="85" y="85" width="230" height="230" fill="none" stroke="#475569" strokeWidth="2.5"/>
+        <rect x="135" y="135" width="130" height="130" fill="none" stroke="#64748b" strokeWidth="2.5"/>
+        
+        {[ [200,35,200,90], [365,200,310,200], [200,365,200,310], [40,200,90,200] ].map(([x1,y1,x2,y2]) => (
+          <line key="conn" x1={x1} y1={y1} x2={x2} y2={y2} stroke="#55657a" strokeWidth="2.5"/>
+        ))}
 
-          {BOARD_POINTS.map((pt, index) => {
-            const isSelected = selectedPiece === index;
-            const isPlayer1 = boardState[index] === 1;
-            const isPlayer2 = boardState[index] === 2;
-            return (
-              <div
-                key={index}
-                onClick={() => handlePointClick(index)}
-                className={`board-point absolute w-5 h-5 rounded-full flex items-center justify-center z-10
-                  ${isSelected ? 'bg-yellow-400 scale-150 shadow-[0_0_15px_rgba(250,204,21,0.8)]' : 'bg-white/20 hover:bg-white/40'}
-                  ${isPlayer1 ? '!bg-gray-900 border-4 border-gray-600 shadow-inner' : ''}
-                  ${isPlayer2 ? '!bg-white border-4 border-gray-300 shadow-lg' : ''}
-                  ${(phase === 'REMOVING' && ((currentPlayer===1 && isPlayer2)||(currentPlayer===2 && isPlayer1))) ? 'cursor-crosshair hover:scale-125 ring-2 ring-red-500 animate-pulse' : ''}
-                `}
-                style={{ left: pt.x - 38, top: pt.y - 38 }}
-              >
-                {isSelected && <span className="text-[10px] font-bold text-black">●</span>}
-              </div>
-            );
-          })}
+        {POSITIONS.map(p => (
+          <circle 
+            key={`node-${p.id}`} 
+            cx={p.x} cy={p.y} r="18" 
+            fill="#0f172a" stroke="#334155" strokeWidth="2"
+            onClick={() => { if(removalMode) handleNodeClick(p.id); else if(phase !== 'gameover') handleNodeClick(p.id); }}
+            className={`cursor-pointer transition-colors ${removalMode && removableTargets.includes(p.id) ? 'hover:fill-red-500/20' : 'hover:fill-slate-800'}`}
+          />
+        ))}
 
-          {(phase === 'MOVING' || phase === 'PLACING') && (
-            <div className="absolute bottom-6 right-6 flex gap-2">
-              {diceValues.map((val, i) => (
-                <div key={i} className={`w-10 h-10 rounded-lg font-bold flex items-center justify-center shadow-lg ${movesLeft > 0 ? 'bg-white text-black animate-pulse' : 'bg-gray-700 text-gray-400'}`}>
-                  {val || '-'}
-                </div>
-              ))}
-            </div>
-          )}
+        {board.map((player, idx) => player && (
+          <circle key={`piece-${idx}`} cx={POSITIONS[idx].x} cy={POSITIONS[idx].y} r="14" 
+            fill={player === 'white' ? '#f8fafc' : '#020617'} 
+            stroke={player === 'white' ? '#94a3b8' : '#475569'} strokeWidth="2">
+            <animate attributeName="r" values="0;14" dur="0.3s" fill="freeze"/>
+          </circle>
+        ))}
 
-          <button onClick={resetGame} className="absolute top-6 right-6 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-medium transition-all">Új játék</button>
+        {selectedPiece !== null && (
+          <>
+            <circle cx={POSITIONS[selectedPiece].x} cy={POSITIONS[selectedPiece].y} r="20" 
+              fill="none" stroke="#818cf8" strokeWidth="3" filter="url(#glow)">
+              <animate attributeName="r" values="18;22;18" dur="1.5s" repeatCount="indefinite"/>
+            </circle>
+            
+            {validMoves.map(vId => (
+               <circle key={`move-${vId}`} cx={POSITIONS[vId].x} cy={POSITIONS[vId].y} r="8" 
+                  fill="#6366f1" opacity="0.4">
+                  <animate attributeName="opacity" values="0.2;0.5;0.2" dur="2s" repeatCount="indefinite"/>
+              </circle>
+            ))}
+
+             {removableTargets.map(rId => (
+               <circle key={`rem-${rId}`} cx={POSITIONS[rId].x} cy={POSITIONS[rId].y} r="20" 
+                  fill="#ef4444" opacity="0.15">
+                  <animate attributeName="opacity" values="0.1;0.3;0.1" dur="1s" repeatCount="indefinite"/>
+              </circle>
+            ))}
+          </>
+        )}
+      </svg>
+
+      {winner && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm z-10">
+          <button onClick={() => window.location.reload()} className="px-6 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold transition-all shadow-lg shadow-indigo-500/25">
+            Új játék indítása 🔄
+          </button>
         </div>
-      </div>
+      )}
 
-      <div className="w-full lg:w-72 space-y-4 order-3">
-        <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Szabályok (MVP)</h3>
-          <ul className="text-xs text-gray-400 space-y-1.5 leading-relaxed">
-            <li>• 9 darab helyezés felváltva</li>
-            <li>• 3 egy sorban = malom → eltávolítás</li>
-            <li>• Elfogyott: csak szomszédos pontra</li>
-            <li>• 3 maradt: bárhova repülés!</li>
-            <li>• Győzelem: ellenfél &lt;4 darabja</li>
-          </ul>
-        </div>
+      <div className="absolute bottom-4 left-4 right-4 flex justify-between items-center text-xs font-mono pointer-events-none">
+           <span className="text-slate-500">A/B: ALPHA</span>
+           <span className="text-indigo-400">{Math.floor((Date.now() - sessionStart)/1000)}s</span>
       </div>
     </div>
   );
