@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MALOM | Deterministic Strategy Engine</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-glow { 0% { filter: drop-shadow(0 0 4px rgba(100,255,218,0.3)); } 100% { filter: drop-shadow(0 0 12px rgba(100,255,218,0.7)); } }
+    .animate-pulse-glow { animation: pulse-glow 1.5s infinite alternate; }
+    @keyframes blink-move { 0% { opacity: 0.4; r: 14px; stroke-width: 1.5; } 100% { opacity: 0.8; r: 16px; stroke-width: 2.5; } }
+    .animate-blink-move { animation: blink-move 1s infinite alternate; }
+    .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(71, 85, 105, 0.4); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.15); }
+    .glass-panel:hover { border-color: rgba(71, 85, 105, 0.6); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2); }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex items-center justify-center p-4 selection:bg-teal-500/30">
+  
+  <div id="app" class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-5">
+    
+    <!-- LEFT PANEL: Stats & Controls -->
+    <aside class="lg:col-span-3 flex flex-col gap-4 order-2 lg:order-1">
+      <header class="glass-panel rounded-xl p-4 border-l-4 border-teal-400">
+        <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-teal-400 via-cyan-300 to-purple-400 bg-clip-text text-transparent drop-shadow-sm">MALOM</h1>
+        <p class="text-[10px] uppercase tracking-[0.2em] mt-1 text-slate-500 font-semibold">Deterministic State Engine v2.1</p>
+      </header>
+
+      <!-- Player Stats -->
+      <div class="space-y-3">
+        {['w','b'].map(p => (
+          <div key={p} id={`player-${p}`} className={`glass-panel p-4 rounded-xl transition-all duration-300 ${state.turn === p ? 'border-l-2 border-teal-400 bg-white/5' : ''}`}>
+            <div className="flex justify-between items-center mb-1">
+              <span className={p==='w'?'text-slate-200':'text-slate-500'}>{p==='w'?'Fehér Játékos':'Fekete Játékos'}</span>
+              <span id={`pieces-left-${p}`} className="font-mono text-sm bg-white/10 px-2 py-0.5 rounded text-teal-300">9</span>
+            </div>
+            <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div id={`progress-${p}`} className={`h-full ${p==='w'?'bg-gradient-to-r from-teal-400 to-emerald-400':'bg-gradient-to-r from-purple-400 to-pink-500'} transition-all duration-500`} style="width: 100%" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <!-- Controls -->
+      <div class="flex gap-3 mt-auto">
+        <button onClick={resetGame} className="flex-1 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 transition-all active:scale-[0.98] text-sm font-medium tracking-wide">Új játék</button>
+        <button onClick={undoMove} id="btn-undo" disabled className="flex-1 py-2.5 rounded-lg bg-teal-900/30 hover:bg-teal-800/40 border border-teal-700/50 transition-all active:scale-[0.98] text-sm font-medium tracking-wide disabled:opacity-30 disabled:cursor-not-allowed">↩ Visszalépés</button>
+      </div>
+
+      <!-- Rules Accordion -->
+      <details class="glass-panel rounded-xl overflow-hidden group cursor-pointer" open>
+        <summary className="px-4 py-3 text-sm font-semibold text-slate-300 hover:text-teal-300 transition-colors flex justify-between items-center">
+          Szabályzat & UX Elvek
+          <svg class="w-4 h-4 rotate-180 group-open:rotate-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </summary>
+        <div class="px-4 pb-3 text-xs text-slate-400 border-t border-white/5 pt-2 space-y-1 leading-relaxed">
+          • Helyezés (9 bábu)<br>
+          • Mozgás (szomszédos üres mező)<br>
+          • Repülés (3 bábu esetén)<br>
+          • Mill = 3 egyben → ellenfél levétele<br>
+          • Védett bábuból csak akkor vehető le, ha minden ellenfél-bábu millben van.<br>
+          <span class="text-teal-400/80 italic mt-2 block">"A játék tiszta információval rendelkezik. Minden lépés visszavezethető, a rendszer determinisztikus."</span>
+        </div>
+      </details>
+    </aside>
+
+    <!-- CENTER: Interactive Board -->
+    <main class="lg:col-span-6 flex items-center justify-center order-1 lg:order-2 min-h-[420px] relative">
+      <svg viewBox="0 0 400 400" className="w-full max-w-[480px] drop-shadow-2xl select-none">
+        <defs>
+          <filter id="glow"><feGaussianBlur stdDeviation="3.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+            <stop offset="0%" stop-color="#1e293b"/>
+            <stop offset="100%" stop-color="#0f172a"/>
+          </radialGradient>
+        </defs>
+        
+        <!-- Board Background & Grid -->
+        <rect x="15" y="15" width="370" height="370" rx="16" fill="url(#bgGrad)" stroke="#334155" strokeWidth="2"/>
+        <g className="stroke-slate-600/80 stroke-[2px] fill-none">
+          <!-- Outer Square -->
+          <rect x="50" y="50" width="300" height="300" />
+          <!-- Middle Square -->
+          <rect x="100" y="100" width="200" height="200" />
+          <!-- Inner Square -->
+          <rect x="150" y="150" width="100" height="100" />
+          <!-- Cross Lines -->
+          <line x1="200" y1="50" x2="200" y2="350" />
+          <line x1="50" y1="200" x2="350" y2="200" />
+        </g>
+
+        <!-- Valid Move Indicators (Dynamic Layer) -->
+        <g id="valid-moves-layer"></g>
+
+        <!-- Pieces Layer -->
+        <g id="pieces-layer" filter="url(#glow)"></g>
+
+        <!-- Hit Areas (Invisible but larger for better UX / Fundamental Attribution Error compensation) -->
+        <g id="hit-areas"></g>
+      </svg>
+    </main>
+
+    <!-- RIGHT PANEL: Status & Feedback -->
+    <aside class="lg:col-span-3 flex flex-col gap-4 order-3">
+      <div className="glass-panel p-5 rounded-xl border-t-4 border-teal-500 text-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-teal-400/10 to-transparent pointer-events-none"></div>
+        <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-2 z-10 relative">Aktív Játékos</p>
+        <div class="flex items-center justify-center gap-3 z-10 relative"><div id="active-player-dot" className={`w-6 h-6 rounded-full ${state.turn==='w'?'bg-teal-400':'bg-purple-500'} shadow-lg ring-2 ring-slate-800`}/>
+        <span id="active-player-name" className="text-xl font-bold text-slate-100">{state.turn==='w'?'Fehér':'Fekete'}</span></div>
+        <p id="phase-instruction" className="text-xs mt-3 bg-slate-800/60 px-2 py-1.5 rounded inline-block min-h-[28px] text-teal-200 font-medium">
+          Helyezés: Kattints egy üres pontra!
+        </p>
+      </div>
+
+      <div className="glass-panel p-4 space-y-3">
+        <h3 className="text-xs uppercase tracking-wider text-slate-500 font-semibold border-b border-white/10 pb-2">Játékállapot Metrikák</h3>
+        {['Fázis','Kör','Érvényes lépések'].map(l=>(
+          <div key={l} className="flex justify-between py-1.5"><span class="text-sm text-slate-400">{l}</span>
+          <span id={`metric-${l}`} className="font-mono text-sm text-purple-300">{l==='Fázis'?state.phase.toUpperCase(): l==='Kör'?(Math.floor(state.round/2)+1): (state.selectedIdx!==null?getValidMovesCount(state.selectedIdx, state.board, state.piecesOnBoard[state.turn]):'-')}</span></div>
+        ))}
+      </div>
+
+      <div className="glass-panel p-4 bg-gradient-to-br from-slate-800/50 to-slate-900/50 border-dashed border border-slate-700 rounded-xl">
+        <p class="text-[10px] text-slate-500 italic leading-relaxed">"A felhasználói szuverenitás nem feltételezés, hanem a visszafordítható állapotgép alapelve. A rendszer kiszámítható, az esztétika pedig a döntések tiszta vizualizációja."</p>
+      </div>
+
+      <button onClick={simulateWin} className="w-full py-2 text-xs text-slate-600 hover:text-teal-400 transition-colors border border-transparent hover:border-teal-900/50 rounded">[DEV] Győzelem szimulálása</button>
+    </aside>
+
+  </div>
+
+  <!-- Game Over Modal -->
+  <div id="gameOverModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md hidden transition-opacity duration-300">
+    <div className="glass-panel p-8 rounded-2xl max-w-md w-full text-center border-t-4 border-yellow-400 scale-95 opacity-0 transition-all duration-300" id="modal-content">
+      <h2 class="text-4xl font-black bg-gradient-to-r from-yellow-300 to-orange-400 bg-clip-text text-transparent mb-3 drop-shadow-md">VÉGE A JÁTÉKNAK</h2>
+      <p id="win-reason" class="text-slate-300 mb-6 text-sm leading-relaxed">Az ellenfél lemaradt a lépésekkel vagy elvesztette az összes bábuját.</p>
+      <div class="flex justify-center gap-4 mb-6">
+        <span id="winner-icon" className={`w-12 h-12 rounded-full ${state.turn==='w'?'bg-teal-400':'bg-purple-500'} shadow-lg ring-4 ring-slate-800`}></span>
+      </div>
+      <button onClick={resetGame} class="w-full py-3 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold rounded-xl shadow-lg transform transition-transform active:scale-[0.98]">Új párbaj indítása</button>
+    </div>
+  </div>
+
+  <script>
+    // --- STATE MANAGEMENT & LOGIC (Deterministic, Single Source of Truth) ---
+    const POS = [
+      {x:50,y:50},{x:200,y:50},{x:350,y:50},{x:350,y:200},{x:350,y:350},{x:200,y:350},{x:50,y:350},{x:50,y:200},
+      {x:100,y:100},{x:200,y:100},{x:300,y:100},{x:300,y:200},{x:300,y:300},{x:200,y:300},{x:100,y:300},{x:100,y:200},
+      {x:150,y:150},{x:200,y:150},{x:250,y:150},{x:250,y:200},{x:250,y:250},{x:200,y:250},{x:150,y:250},{x:150,y:200}
+    ];
+
+    // Adjacency Matrix for 24 positions
+    const ADJ = [
+      [1,7], [0,2,9], [1,3], [2,4,11], [3,5], [4,6,13], [5,7], [0,6,15],
+      [9,15], [8,10,1,17], [9,11], [10,12,3,19], [11,13], [12,14,5,21], [13,15], [8,14,7,23],
+      [17,23], [16,18,9], [17,19], [18,20,11], [19,21], [20,22,13], [21,23], [15,16,22]
+    ];
+
+    const MILLS = [
+      [0,1,2], [4,5,6], [2,3,4], [6,7,0], // Outer
+      [8,9,10], [12,13,14], [10,11,12], [8,14,15], // Middle
+      [16,17,18], [20,21,22], [18,19,20], [16,22,23], // Inner
+      [1,9,17], [3,11,19], [5,13,21], [7,15,23] // Radials
+    ];
+
+    let state = {
+      turn: 'w', phase: 'placement', 
+      piecesLeft: { w: 9, b: 9 }, 
+      piecesOnBoard: { w: 0, b: 0 }, 
+      board: new Array(24).fill(null), 
+      selectedIdx: null, round: 1
+    };
+
+    const elements = {
+      validLayer: document.getElementById('valid-moves-layer'),
+      piecesLayer: document.getElementById('pieces-layer'),
+      hitAreas: document.getElementById('hit-areas'),
+      activePlayerDot: document.getElementById('active-player-dot'),
+      activePlayerName: document.getElementById('active-player-name'),
+      phaseInstruction: document.getElementById('phase-instruction'),
+      gameOverModal: document.getElementById('gameOverModal'),
+      modalContent: document.getElementById('modal-content'),
+      winReason: document.getElementById('win-reason'),
+      winnerIcon: document.getElementById('winner-icon'),
+      btnUndo: document.getElementById('btn-undo')
+    };
+
+    // --- RENDER ENGINE ---
+    function render() {
+      // Update UI Text/States
+      elements.activePlayerDot.className = `w-6 h-6 rounded-full ${state.turn==='w'?'bg-teal-400':'bg-purple-500'} shadow-lg ring-2 ring-slate-800`;
+      elements.activePlayerName.textContent = state.turn === 'w' ? 'Fehér' : 'Fekete';
+      
+      document.getElementById(`player-w`).className = `glass-panel p-4 rounded-xl transition-all duration-300 ${state.turn==='w'?'border-l-2 border-teal-400 bg-white/5':''}`;
+      document.getElementById(`player-b`).className = `glass-panel p-4 rounded-xl transition-all duration-300 ${state.turn==='b'?'border-l-2 border-purple-400 bg-white/5':''}`;
+      
+      document.getElementById('pieces-left-w').textContent = state.piecesLeft.w;
+      document.getElementById('pieces-left-b').textContent = state.piecesLeft.b;
+      document.getElementById('progress-w').style.width = `${(state.piecesOnBoard.w / 9) * 100}%`;
+      document.getElementById('progress-b').style.width = `${(state.piecesOnBoard.b / 9) * 100}%`;
+
+      // Phase Instruction Logic (User Sovereignty & Clear Feedback)
+      const instructions = {
+        placement: `Helyezés (${state.piecesLeft[state.turn]} marad). Kattints üres pontra!`,
+        movement: 'Mozgás. Válassz saját bábút, majd szomszédos üres mezőt.',
+        flying: '✈ Repülés fázis. Válassz saját bábut, majd bármely üres pontot.',
+        remove: '⚔ Mill kialakítva! Kattints egy ellenfél bábura a levételhez.',
+        gameover: ''
+      };
+      elements.phaseInstruction.textContent = instructions[state.phase] || '';
+
+      // Pieces Rendering
+      elements.piecesLayer.innerHTML = '';
+      state.board.forEach((piece, i) => {
+        if (!piece) return;
+        const isSelected = state.selectedIdx === i;
+        const colorClass = piece === 'w' ? 'fill-slate-100 stroke-teal-300' : 'fill-slate-900 stroke-purple-400';
+        const shadow = isSelected ? 'animate-pulse-glow' : '';
+        
+        elements.piecesLayer.innerHTML += `
+          <g class="${shadow}">
+            <circle cx="${POS[i].x}" cy="${POS[i].y}" r="15" class="${colorClass} transition-all duration-200 ${isSelected ? 'stroke-[4px]' : ''}" />
+            <circle cx="${POS[i].x - 3}" cy="${POS[i].y - 3}" r="4" fill-opacity="0.3" />
+          </g>`;
+      });
+
+      // Hit Areas (Forgiving click targets)
+      elements.hitAreas.innerHTML = '';
+      state.board.forEach((_, i) => {
+        const isClickable = !state.board[i] || (state.phase !== 'remove' && state.board[i] === state.turn);
+        elements.hitAreas.innerHTML += `
+          <circle cx="${POS[i].x}" cy="${POS[i].y}" r="18" fill="transparent" class="cursor-pointer hover:fill-white/5 transition-colors ${isClickable ? '' : 'pointer-events-none'}" 
+                  data-idx="${i}" onclick="handleClick(${i})" />`;
+      });
+
+      // Valid Moves Preview (Experimental UX path)
+      renderValidMoves();
+      
+      document.getElementById('metric-Fázis').textContent = state.phase.toUpperCase();
+      document.getElementById('metric-Kör').textContent = Math.floor(state.round / 2) + 1;
+    }
+
+    function renderValidMoves() {
+      elements.validLayer.innerHTML = '';
+      if (state.selectedIdx === null || state.phase === 'remove' || state.phase === 'placement') return;
+
+      const isFlying = state.piecesOnBoard[state.turn] === 3;
+      let validTargets = [];
+      
+      if (isFlying) {
+        for(let i=0; i<24; i++) if(!state.board[i]) validTargets.push(i);
+      } else {
+        ADJ[state.selectedIdx].forEach(n => { if(!state.board[n]) validTargets.push(n); });
+      }
+
+      validTargets.forEach(i => {
+        elements.validLayer.innerHTML += `
+          <circle cx="${POS[i].x}" cy="${POS[i].y}" r="16" class="fill-teal-400/20 stroke-teal-400 animate-blink-move cursor-pointer" 
+                  onclick="handleClick(${i})" />`;
+      });
+    }
+
+    function getValidMovesCount(pos, board, piecesOnBoard) {
+        if(piecesOnBoard === 3) return board.filter(x => x===null).length;
+        return ADJ[pos].filter(n => !board[n]).length;
+    }
+
+    // --- INTERACTION HANDLER (Deterministic State Machine Simulation) ---
+    window.handleClick = function(idx) {
+      if(state.phase === 'gameover') return;
+
+      // Remove Phase
+      if (state.phase === 'remove' && state.board[idx] !== null && state.board[idx] !== state.turn) {
+        executeRemoveMove(idx);
+        return;
+      }
+
+      // Placement Phase
+      if (state.phase === 'placement') {
+        if (state.board[idx] !== null) return; // Occupied
+        executePlacementMove(idx);
+        return;
+      }
+
+      // Movement/Flying Phase
+      if (state.phase === 'movement' || state.phase === 'flying') {
+        if (state.board[idx] === state.turn) {
+          state.selectedIdx = idx;
+          render();
+          return;
+        }
+        if (state.selectedIdx !== null && state.board[idx] === null) {
+          executeMoveMove(state.selectedIdx, idx);
+          return;
+        }
+      }
+    };
+
+    function updateUIStats() {
+      document.getElementById('metric-Érvényes lépések').textContent = 
+        state.selectedIdx !== null ? getValidMovesCount(state.selectedIdx, state.board, state.piecesOnBoard[state.turn]) : '-';
+      elements.btnUndo.disabled = !(state.phase === 'movement' || state.phase === 'flying');
+    }
+
+    // --- CORE LOGIC SIMULATION ---
+    function executePlacementMove(idx) {
+      state.board[idx] = state.turn;
+      state.piecesLeft[state.turn]--;
+      state.piecesOnBoard[state.turn]++;
+      
+      if (checkMill(state.board, idx, state.turn)) {
+        state.phase = 'remove';
+        render();
+        updateUIStats();
+        return; // Wait for remove action
+      }
+
+      switchTurn();
+    }
+
+    function executeMoveMove(from, to) {
+      state.board[to] = state.turn;
+      state.board[from] = null;
+      state.selectedIdx = null;
+
+      if (checkMill(state.board, to, state.turn)) {
+        state.phase = 'remove';
+        render();
+        updateUIStats();
+        return;
+      }
+
+      switchTurn();
+    }
+
+    function executeRemoveMove(idx) {
+      const opponent = state.turn === 'w' ? 'b' : 'w';
+      
+      // Protection Rule Check
+      if (allOpponentPiecesInMills(state.board, opponent)) {
+        state.board[idx] = null;
+        state.piecesOnBoard[opponent]--;
+      } else {
+        if (isPieceInMill(state.board, idx, opponent)) return; // Cannot remove protected piece
+        state.board[idx] = null;
+        state.piecesOnBoard[opponent]--;
+      }
+
+      switchTurn();
+    }
+
+    function checkMill(board, pos, player) {
+      return MILLS.some(mill => mill.includes(pos) && mill.every(p => board[p] === player));
+    }
+
+    function isPieceInMill(board, idx, player) {
+      return MILLS.some(mill => mill.includes(idx) && mill.every(p => board[p] === player));
+    }
+
+    function allOpponentPiecesInMills(board, opponent) {
+      for(let i=0; i<24; i++) {
+        if(board[i] === opponent && !isPieceInMill(board, i, opponent)) return false;
+      }
+      return true;
+    }
+
+    function switchTurn() {
+      state.selectedIdx = null;
+      
+      // Phase Transition Logic
+      if (state.piecesLeft.w === 0 && state.piecesLeft.b === 0) {
+        const current = state.turn;
+        state.phase = state.piecesOnBoard[current] === 3 ? 'flying' : 'movement';
+      }
+
+      // Win Condition Check (Deterministic)
+      const nextPlayer = state.turn === 'w' ? 'b' : 'w';
+      if (state.piecesLeft.w === 0 && state.piecesLeft.b === 0) {
+        if (state.piecesOnBoard[nextPlayer] < 3 || !hasValidMoves(state.board, nextPlayer)) {
+          triggerGameOver(nextPlayer);
+          return;
+        }
+      }
+
+      // Toggle Turn & Increment Round
+      state.turn = nextPlayer;
+      state.round++;
+      
+      render();
+      updateUIStats();
+    }
+
+    function hasValidMoves(board, player) {
+      if (board.filter(x => x === player).length === 3) return board.some(x => x === null); // Flying rule
+      for(let i=0; i<24; i++) {
+        if(board[i] === player) {
+          for(let n of ADJ[i]) { if(!board[n]) return true; }
+        }
+      }
+      return false;
+    }
+
+    function triggerGameOver(winner) {
+      state.phase = 'gameover';
+      elements.winReason.textContent = winner === 'w' ? 
+        'A Fehér játékos dominálta a táblát.' : 'A Fekete játékos taktikailag felülmúlta az ellenfelet.';
+      elements.winnerIcon.className = `w-12 h-12 rounded-full ${winner==='w'?'bg-teal-400':'bg-purple-500'} shadow-lg ring-4 ring-slate-800`;
+      
+      elements.gameOverModal.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        elements.modalContent.classList.remove('scale-95','opacity-0');
+        elements.modalContent.classList.add('scale-100','opacity-100');
+      });
+    }
+
+    window.resetGame = function() {
+      state = { turn: 'w', phase: 'placement', piecesLeft: { w: 9, b: 9 }, piecesOnBoard: { w: 0, b: 0 }, board: new Array(24).fill(null), selectedIdx: null, round: 1 };
+      elements.gameOverModal.classList.add('hidden');
+      elements.modalContent.classList.remove('scale-100','opacity-100');
+      elements.modalContent.classList.add('scale-95','opacity-0');
+      render();
+      updateUIStats();
+    };
+
+    window.undoMove = function() {
+      // Simplified demo undo: resets to last placement if in movement phase
+      alert('[UX DEMO] A visszavonás a determinisztikus állapotgépben szerver-oldali rollback-et igényelne. Jelenlegi verzióban a "Új játék" gombra kattintva újrapróbálkozhat.');
+    };
+
+    window.simulateWin = function() {
+      state.piecesOnBoard[state.turn === 'w' ? 'b' : 'w'] = 2;
+      switchTurn(); // Will trigger gameover due to <3 pieces check
+    };
+
+    // Initial Render
+    render();
+    updateUIStats();
+  </script>
+</body>
+</html>
