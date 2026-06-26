@@ -1,29 +1,51 @@
 pipeline {
     agent any
     tools {
-        nodejs "Node18"
         maven "Maven3"
+        nodejs "Node18"
     }
     stages {
-        stage('Checkout SCM') {
-            steps { checkout scm }
-        }
         stage('Frontend Build & Test') {
-            when { expression { fileExists("frontend/package.json") } }
             steps {
-                sh 'npm ci'
-                sh 'npm test'
+                dir('frontend') {
+                    sh 'npm ci'
+                    sh 'npm run build'
+                    sh 'npm test'
+                }
             }
         }
-        stage('Backend Build & Test') {
-            when { expression { fileExists("backend/pom.xml") } }
+        stage('Backend Build') {
             steps {
-                sh 'mvn clean compile'
-                sh 'mvn test'
+                dir('backend') {
+                    sh 'mvn clean compile'
+                }
+            }
+        }
+        stage('Backend Tests') {
+            when {
+                expression { fileExists("backend/pom.xml") }
+            }
+            steps {
+                dir('backend') {
+                    sh 'mvn test'
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                echo "Pipeline execution: deterministic deployment sequence initiated."
+                dir('backend') {
+                    sh 'JENKINS_NODE_COOKIE=dontKillMe nohup mvn spring-boot:run -Dserver.port=8081 > backend.log 2>&1 &'
+                }
+                dir('frontend') {
+                    sh 'JENKINS_NODE_COOKIE=dontKillMe nohup npm start > frontend.log 2>&1 &'
+                }
             }
         }
     }
     post {
-        always { echo 'Pipeline befejezve. A rend helyreállt.' }
+        always {
+            echo "Pipeline audit complete. All outcomes are mathematically derived."
+        }
     }
 }
