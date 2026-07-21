@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeoBank Demo | Modern UX Prototípus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        [x-cloak] { display: none !important; }
+        .glass-panel { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.6); }
+        .gradient-card { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+        .transition-smooth { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased min-h-screen" x-data="bankApp()" x-init="init()">
+
+    <!-- Demo Mode Badge (Átláthatósági kompenzáció a felhasználói bizonytalanság ellen) -->
+    <div class="fixed top-4 right-4 z-50 pointer-events-none">
+        <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-100 border border-yellow-200 text-xs font-semibold text-yellow-800 shadow-sm animate-pulse">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            DEMO KÖRNYEZET • VALÓS PÉNZ NINCS MOZGATVA
+        </span>
+    </div>
+
+    <!-- LOGIN VIEW (Útvonal-irányítás a kognitív teher csökkentésére) -->
+    <template x-if="!isAuthenticated">
+        <div class="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+            <div class="w-full max-w-md glass-panel rounded-2xl shadow-xl p-8 transform transition-smooth hover:scale-[1.01]">
+                <div class="text-center mb-8">
+                    <div class="inline-flex items-center justify-center w-14 h-14 rounded-xl gradient-card text-white shadow-lg mb-4">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                    </div>
+                    <h1 class="text-2xl font-bold text-slate-900">NeoBank Belépés</h1>
+                    <p class="text-sm text-slate-500 mt-2">Biztonságos, emberközpontú hozzáférés szimulációja.</p>
+                </div>
+
+                <form @submit.prevent="login" class="space-y-5">
+                    <div x-show="authError" x-transition class="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700 flex items-center gap-2">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span x-text="authError"></span>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Felhasználónév</label>
+                        <input type="text" x-model="loginForm.username" placeholder="pl. demo_user" 
+                            class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-smooth">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Jelszó</label>
+                        <input type="password" x-model="loginForm.password" placeholder="Min. 3 karakter" 
+                            class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-smooth">
+                    </div>
+                    
+                    <button type="submit" :disabled="isLoading" 
+                        class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-200 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                        <svg x-show="isLoading" class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span x-text="isLoading ? 'Hitelesítés...' : 'Bejelentkezés'"></span>
+                    </button>
+                </form>
+                <p class="text-xs text-center text-slate-400 mt-6">A felület a Dunning-Kruger hatályt kompenzáló, intuitív navigációt alkalmaz.</p>
+            </div>
+        </div>
+    </template>
+
+    <!-- MAIN APP VIEW -->
+    <template x-if="isAuthenticated">
+        <div class="flex h-screen overflow-hidden bg-slate-50">
+            
+            <!-- SIDEBAR (Kontroll és orientációs keretrendszer) -->
+            <aside class="w-64 bg-white border-r border-slate-200 flex-col hidden md:flex z-10">
+                <div class="p-6 flex items-center gap-3 border-b border-slate-100">
+                    <div class="w-9 h-9 rounded-lg gradient-card flex items-center justify-center text-white shadow-md">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <span class="font-bold text-lg tracking-tight text-slate-800">NeoBank</span>
+                </div>
+
+                <nav class="flex-1 p-4 space-y-1.5 overflow-y-auto">
+                    <template x-for="item in navItems" :key="item.id">
+                        <button @click="currentView = item.id" 
+                            :class="{'bg-indigo-50 text-indigo-700 font-medium': currentView === item.id, 'text-slate-600 hover:bg-slate-50': currentView !== item.id}"
+                            class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-200">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path x-show="item.id === 'dashboard'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path><path x-show="item.id === 'transactions'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path><path x-show="item.id === 'transfer'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                            <span x-text="item.label"></span>
+                        </button>
+                    </template>
+                </nav>
+
+                <div class="p-4 border-t border-slate-100">
+                    <button @click="logout" class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                        Kijelentkezés
+                    </button>
+                </div>
+            </aside>
+
+            <!-- MAIN CONTENT -->
+            <main class="flex-1 overflow-y-auto p-4 md:p-8 relative">
+                <!-- Mobile Header -->
+                <div class="md:hidden flex items-center justify-between mb-6">
+                    <span class="font-bold text-lg text-slate-900">NeoBank</span>
+                    <button @click="logout" class="p-2 rounded-lg bg-white border border-slate-200 text-slate-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    </button>
+                </div>
+
+                <!-- DASHBOARD VIEW -->
+                <template x-if="currentView === 'dashboard'">
+                    <div class="space-y-6 max-w-5xl mx-auto animate-fade-in">
+                        <header class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
+                            <div>
+                                <h1 class="text-2xl font-bold text-slate-900">Üdv vissza, <span x-text="user.username"></span></h1>
+                                <p class="text-sm text-slate-500 mt-1">A pénzügyi állapotod áttekinthetően kezelése.</p>
+                            </div>
+                            <button @click="currentView = 'transfer'" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium shadow-md transition-colors flex items-center gap-2 md:self-end">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                                Új utalás
+                            </button>
+                        </header>
+
+                        <!-- Balance Card (Halo-effektus: esztétika = funkcionális fölény) -->
+                        <div class="gradient-card rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+                            <div class="absolute top-0 right-0 w-48 h-48 bg-white opacity-10 rounded-full -mr-10 -mt-10 blur-3xl"></div>
+                            <p class="text-indigo-100 text-sm font-medium mb-1">Összesíthető egyenleg</p>
+                            <h2 class="text-4xl md:text-5xl font-bold tracking-tight mb-6" x-text="'€ ' + balance.toLocaleString('hu-HU', {minimumFractionDigits: 2})"></h2>
+                            <div class="flex flex-wrap gap-3">
+                                <button @click="currentView = 'transactions'" class="px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg text-sm font-medium transition-colors border border-white/10">Tranzakciók megtekintése</button>
+                                <div class="px-4 py-2 bg-emerald-500/80 rounded-lg text-sm font-medium flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                                    +12.5% ez hónapban
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Transactions (Megerősítési torzítás: csak a releváns, pozitív vagy semleges adatok jelennek meg először) -->
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+                                <h3 class="font-bold text-slate-900">Legutóbbi tevékenység</h3>
+                                <span class="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-md">Automatikus szűrés aktiválva</span>
+                            </div>
+                            <ul class="divide-y divide-slate-50">
+                                <template x-for="(tx, index) in transactions.slice(0, 4)" :key="index">
+                                    <li class="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer" @click="currentView = 'transactions'">
+                                        <div class="flex items-center gap-4">
+                                            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shadow-sm" 
+                                                :class="tx.amount > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'"
+                                                x-text="tx.amount > 0 ? '+' : '-'">
+                                            </div>
+                                            <div>
+                                                <p class="font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors" x-text="tx.desc"></p>
+                                                <p class="text-xs text-slate-400" x-text="new Date(tx.date).toLocaleDateString('hu-HU') + ' • ' + tx.type"></p>
+                                            </div>
+                                        </div>
+                                        <span class="font-bold tracking-tight" :class="tx.amount > 0 ? 'text-emerald-600' : 'text-slate-900'" x-text="(tx.amount > 0 ? '+' : '') + '€ ' + Math.abs(tx.amount).toFixed(2)"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- TRANSACTIONS VIEW -->
+                <template x-if="currentView === 'transactions'">
+                    <div class="space-y-6 max-w-4xl mx-auto animate-fade-in">
+                        <header class="mb-6">
+                            <h1 class="text-2xl font-bold text-slate-900">Tranzakciós előzmények</h1>
+                            <p class="text-sm text-slate-500">Teljes átláthatóság a kognitív teher csökkentése érdekében.</p>
+                        </header>
+
+                        <!-- Filters (Illúzió a kontrollról, valójában strukturált navigáció) -->
+                        <div class="flex flex-wrap gap-3 mb-4">
+                            <button @click="filter = 'all'" :class="{'bg-indigo-100 text-indigo-700 border-indigo-200': filter === 'all', 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}" class="px-4 py-2 rounded-lg border text-sm font-medium transition-colors">Összes</button>
+                            <button @click="filter = 'income'" :class="{'bg-emerald-100 text-emerald-700 border-emerald-200': filter === 'income', 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}" class="px-4 py-2 rounded-lg border text-sm font-medium transition-colors">Bevételek</button>
+                            <button @click="filter = 'expense'" :class="{'bg-red-100 text-red-700 border-red-200': filter === 'expense', 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}" class="px-4 py-2 rounded-lg border text-sm font-medium transition-colors">Kiadások</button>
+                        </div>
+
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+                            <template x-for="(tx, index) in filteredTransactions" :key="index">
+                                <div class="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm" 
+                                            :class="tx.amount > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path x-show="tx.amount > 0" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path><path x-show="tx.amount <= 0" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+                                        </div>
+                                        <div>
+                                            <p class="font-semibold text-slate-900" x-text="tx.desc"></p>
+                                            <p class="text-xs text-slate-400" x-text="new Date(tx.date).toLocaleString('hu-HU') + ' • Status: ' + tx.status"></p>
+                                        </div>
+                                    </div>
+                                    <span class="font-bold tracking-tight" :class="tx.amount > 0 ? 'text-emerald-600' : 'text-slate-900'" x-text="(tx.amount > 0 ? '+' : '') + '€ ' + Math.abs(tx.amount).toFixed(2)"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- TRANSFER VIEW -->
+                <template x-if="currentView === 'transfer'">
+                    <div class="space-y-6 max-w-2xl mx-auto animate-fade-in">
+                        <header class="mb-6">
+                            <h1 class="text-2xl font-bold text-slate-900">Utalás indítása</h1>
+                            <p class="text-sm text-slate-500">Kontextus-specifikus validálás a hibák minimalizálása érdekében.</p>
+                        </header>
+
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-xl p-6 md:p-8 relative overflow-hidden">
+                            <!-- Processing Overlay -->
+                            <div x-show="isProcessing" x-transition.opacity class="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center text-slate-700">
+                                <svg class="animate-spin h-8 w-8 mb-3 text-indigo-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                <p class="font-semibold">Biztonsági ellenőrzés...</p>
+                                <p class="text-xs text-slate-400 mt-1">Szimulált késleltetés a felhasználói meggondolás idejének növelésére.</p>
+                            </div>
+
+                            <!-- Success State -->
+                            <template x-if="transferStatus === 'success'">
+                                <div class="text-center py-8 animate-fade-in">
+                                    <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                    </div>
+                                    <h3 class="text-xl font-bold text-slate-900 mb-2">Utalás sikeres!</h3>
+                                    <p class="text-sm text-slate-500 mb-6">A tranzakció rögzítve. Átirányítás a dashboardra...</p>
+                                    <button @click="resetTransfer" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors">Új utalás</button>
+                                </div>
+                            </template>
+
+                            <!-- Failure State -->
+                            <template x-if="transferStatus === 'error'">
+                                <div class="text-center py-8 animate-fade-in">
+                                    <div class="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                    </div>
+                                    <h3 class="text-xl font-bold text-slate-900 mb-2">Hiba történt</h3>
+                                    <p class="text-sm text-slate-500 mb-6" x-text="transferErrorMsg || 'Érvénytelen adatok vagy egyensúly hiány.'"></p>
+                                    <button @click="resetTransfer" class="px-6 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-medium transition-colors">Próbáld újra</button>
+                                </div>
+                            </template>
+
+                            <!-- Form -->
+                            <form x-show="transferStatus === 'idle'" @submit.prevent="executeTransfer" class="space-y-5">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1.5">Címzett neve / Számlaszám</label>
+                                    <input type="text" x-model="transferForm.to" placeholder="pl. John Doe vagy HU1234..." 
+                                        class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-smooth">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1.5">Összeg (€)</label>
+                                    <input type="number" step="0.01" min="0.01" x-model="transferForm.amount" placeholder="0.00" 
+                                        class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-smooth">
+                                </div>
+                                
+                                <div class="p-4 bg-yellow-50/80 border border-yellow-100 rounded-xl flex gap-3 items-start">
+                                    <svg class="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <div class="text-sm text-yellow-800">
+                                        <p class="font-medium">Demo mód aktiválva</p>
+                                        <p class="opacity-90">Ez a művelet nem mozgathat valós pénzt. A rendszer szimulálja az banki tranzakciós láncot.</p>
+                                    </div>
+                                </div>
+
+                                <button type="submit" 
+                                    class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                                    Megerősítés & Utalás
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </template>
+
+            </main>
+        </div>
+    </template>
+
+    <script>
+        function bankApp() {
+            return {
+                isAuthenticated: false,
+                user: null,
+                currentView: 'dashboard',
+                filter: 'all',
+                isLoading: false,
+                authError: '',
+                
+                loginForm: { username: '', password: '' },
+                
+                balance: 12450.80,
+                transactions: [
+                    { id: 1, date: new Date(Date.now() - 1000*60*60*2).toISOString(), amount: -45.20, desc: 'Tesco Global Áruházak', type: 'Kártya', status: 'completed' },
+                    { id: 2, date: new Date(Date.now() - 1000*60*60*24).toISOString(), amount: 2500.00, desc: 'Bérkrédit • ABC Corp.', type: 'Bejövő', status: 'completed' },
+                    { id: 3, date: new Date(Date.now() - 1000*60*60*48).toISOString(), amount: -129.99, desc: 'Netflix Subscription', type: 'Automatikus', status: 'completed' },
+                    { id: 4, date: new Date(Date.now() - 1000*60*60*72).toISOString(), amount: -85.50, desc: 'Coop Szupermarket', type: 'Kártya', status: 'completed' },
+                    { id: 5, date: new Date(Date.now() - 1000*60*60*96).toISOString(), amount: 340.00, desc: 'Freelance Fizetés', type: 'Bejövő', status: 'completed' }
+                ],
+
+                navItems: [
+                    { id: 'dashboard', label: 'Áttekintés' },
+                    { id: 'transactions', label: 'Tranzakciók' },
+                    { id: 'transfer', label: 'Utalás' }
+                ],
+
+                transferForm: { to: '', amount: '' },
+                isProcessing: false,
+                transferStatus: 'idle', // idle, success, error
+                transferErrorMsg: '',
+
+                init() {
+                    // A kognitív teher csökkentése: alapértelmezett navigáció beállítása
+                    this.currentView = 'dashboard';
+                },
+
+                get filteredTransactions() {
+                    if (this.filter === 'income') return this.transactions.filter(t => t.amount > 0);
+                    if (this.filter === 'expense') return this.transactions.filter(t => t.amount < 0);
+                    return this.transactions;
+                },
+
+                async login() {
+                    this.authError = '';
+                    this.isLoading = true;
+                    
+                    // Szimulált hitelesítési késleltetés (UX feedback a rendszeraktivitásról)
+                    await new Promise(r => setTimeout(r, 600));
+                    
+                    if (this.loginForm.password.length < 3 || !this.loginForm.username.trim()) {
+                        this.authError = 'Érvénytelen hitelesítési adatok. Kérjük, ellenőrizze a mezőket.';
+                        this.isLoading = false;
+                        return;
+                    }
+
+                    // A felhasználói identitás rögzítése (szociális igazoltság és kontroll illúziója)
+                    this.isAuthenticated = true;
+                    this.user = { username: this.loginForm.username };
+                    this.currentView = 'dashboard';
+                },
+
+                logout() {
+                    this.isAuthenticated = false;
+                    this.user = null;
+                    this.resetTransfer();
+                    this.loginForm.password = '';
+                },
+
+                async executeTransfer() {
+                    const amount = parseFloat(this.transferForm.amount);
+                    
+                    if (!this.transferForm.to.trim()) {
+                        this.transferErrorMsg = 'A címzett mező kitöltése kötelező.';
+                        this.transferStatus = 'error';
+                        return;
+                    }
+
+                    if (isNaN(amount) || amount <= 0) {
+                        this.transferErrorMsg = 'Az összegnek pozitívnak kell lennie.';
+                        this.transferStatus = 'error';
+                        return;
+                    }
+
+                    if (amount > this.balance) {
+                        this.transferErrorMsg = 'Elégtelen egyenleg. A tranzakció blokkolva a kockázatkezelési szabályok szerint.';
+                        this.transferStatus = 'error';
+                        return;
+                    }
+
+                    // Demo mode szimuláció
+                    this.isProcessing = true;
+                    await new Promise(r => setTimeout(r, 1500)); // Kognitív meggondolási idő növelése
+
+                    if (Math.random() > 0.9) { // Rendszerhiba szimulálása a valósághűség érdekében
+                        this.transferErrorMsg = 'Hálózati timeout a sandbox környezetben. Próbálja újra.';
+                        this.transferStatus = 'error';
+                    } else {
+                        this.balance -= amount;
+                        const newTx = { 
+                            id: Date.now(), 
+                            date: new Date().toISOString(), 
+                            amount: -amount, 
+                            desc: `Utalás: ${this.transferForm.to}`, 
+                            type: 'Kimeno', 
+                            status: 'SIMULATED' 
+                        };
+                        this.transactions.unshift(newTx);
+                        this.transferStatus = 'success';
+                    }
+                    
+                    this.isProcessing = false;
+                },
+
+                resetTransfer() {
+                    this.transferForm = { to: '', amount: '' };
+                    this.transferStatus = 'idle';
+                    this.transferErrorMsg = '';
+                }
+            }
+        }
+    </script>
+</body>
+</html>
