@@ -1,3 +1,3 @@
 package com.app.dto;
 
-public record MoveRequest(int from, int to) {}
+public record MoveRequest(int fromIndex, int toIndex) {}

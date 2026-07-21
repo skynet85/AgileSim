@@ -1,65 +1,47 @@
 package com.app.controller;
 
-import com.app.dto.CreateGameRequest;
-import com.app.dto.MoveRequest;
-import com.app.service.GameService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-import java.util.UUID;
-
-@RestController
-@RequestMapping("/api/games")
+@RestController 
+@RequestMapping("/api/game")
 public class GameController {
+    private final com.app.service.GameService gameService;
 
-    private final GameService gameService;
-
-    public GameController(GameService gameService) {
-        this.gameService = gameService;
+    @Autowired 
+    public GameController(com.app.service.GameService gameService) { 
+        this.gameService = gameService; 
     }
 
-    @PostMapping
-    public ResponseEntity<Map<String, String>> createGame(@RequestBody CreateGameRequest request) {
-        // Egyedi azonosító generálása a játék állapotának elkülönítésére
-        String gameId = UUID.randomUUID().toString();
-        gameService.initializeGame(gameId, request.mode());
-        
-        return ResponseEntity.ok(Map.of(
-            "gameId", gameId,
-            "status", "CREATED"
-        ));
+    @PostMapping("/init") 
+    public ResponseEntity<com.app.dto.GameResponse> initGame() { 
+        String gameId = gameService.createGame(); 
+        var board = gameService.getBoard(gameId); 
+        return ResponseEntity.ok(new com.app.dto.GameResponse(gameId, board, 1, "PLACING", "Új játék inicializálva. Válassz játékost.")); 
     }
 
-    @PostMapping("/{gameId}/move")
-    public ResponseEntity<Map<String, Object>> submitMove(@PathVariable String gameId, 
-                                                          @RequestBody MoveRequest move) {
-        try {
-            Map<String, Object> result = gameService.processMove(gameId, move);
-            return ResponseEntity.ok(result);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
-        }
+    @PostMapping("/{gameId}/move") 
+    public ResponseEntity<com.app.dto.GameResponse> makeMove(
+            @PathVariable String gameId, 
+            @RequestBody com.app.dto.MoveRequest request) { 
+        try { 
+            var response = gameService.makeMove(gameId, request.fromIndex(), request.toIndex()); 
+            return ResponseEntity.ok(response); 
+        } catch (Exception e) { 
+            return ResponseEntity.badRequest().body(
+                new com.app.dto.GameResponse(gameId, java.util.List.of(new String[24]), 1, "ERROR", "Hiba: " + e.getMessage())
+            ); 
+        } 
     }
 
-    @PostMapping("/{gameId}/remove")
-    public ResponseEntity<Map<String, Object>> removePiece(@PathVariable String gameId, 
-                                                           @RequestBody Map<String, Integer> request) {
-        try {
-            Map<String, Object> result = gameService.removePiece(gameId, request.get("position"));
-            return ResponseEntity.ok(result);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
-        }
-    }
-
-    @GetMapping("/{gameId}")
-    public ResponseEntity<Map<String, Object>> getGameState(@PathVariable String gameId) {
-        Map<String, Object> state = gameService.getGameState(gameId);
-        if (state == null || state.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        // A frontend szerkezetének megfelelő burkolás
-        return ResponseEntity.ok(Map.of("state", state));
+    @PostMapping("/{gameId}/capture") 
+    public ResponseEntity<String> capturePiece(@PathVariable String gameId, @RequestBody com.app.dto.CaptureRequest request) { 
+        try { 
+            gameService.capturePiece(gameId, request.pieceIndex()); 
+            return ResponseEntity.ok("Kikapás rögzítve."); 
+        } catch (Exception e) { 
+            return ResponseEntity.badRequest().body("Érvénytelen kikapási kísérlet: " + e.getMessage()); 
+        } 
     }
 }
